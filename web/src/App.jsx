@@ -26,6 +26,25 @@ export default function App() {
   const [finished, setFinished] = useState(false);
   const [isWinner, setIsWinner] = useState(false);
   const [rank, setRank] = useState(null);
+  // ===== MODALE DETTAGLI RUN =====
+const [detailsOpen, setDetailsOpen] = useState(false);
+const [detailsUser, setDetailsUser] = useState("");
+const [detailsLoading, setDetailsLoading] = useState(false);
+const [detailsRows, setDetailsRows] = useState([]);
+
+async function openDetails(runId, user) {
+  setDetailsUser(user);
+  setDetailsOpen(true);
+  setDetailsLoading(true);
+  const { data, error } = await supabase.rpc("get_run_details", { p_run_id: runId });
+  if (!error) setDetailsRows(Array.isArray(data) ? data : []);
+  setDetailsLoading(false);
+}
+function closeDetails() {
+  setDetailsOpen(false);
+  setDetailsRows([]);
+}
+
 
   // ===== Flags globali (da DB) =====
   const [isStartEnabled, setIsStartEnabled] = useState(false);
@@ -403,7 +422,7 @@ const startLockedBecauseOfFlag = useMemo(() => {
                   className={`${row.is_winner ? "winner" : ""} ${highlightRunId === row.run_id ? "hl" : ""}`}
                 >
                   <span className="pos">{i + 1 + page * PAGE_SIZE}</span>
-                  <span className="user">@{row.username}</span>
+                  <span className="user linkish" onClick={() => openDetails(row.run_id, row.username)} title="Vedi dettagli run">@{row.username}</span>
                   <span className="score">{row.score}/15</span>
                   <span className="time">{Math.round((row.elapsed_ms || 0) / 1000)}s</span>
                   {row.is_winner && <span className="badge">Vincitore</span>}
@@ -440,6 +459,61 @@ const startLockedBecauseOfFlag = useMemo(() => {
                 <div>Inserisci il tuo username per vedere la posizione</div>
               )}
             </div>
+
+
+{detailsOpen && (
+  <>
+    <div className="modal-backdrop" onClick={closeDetails} />
+    <div className="modal">
+      <div className="modal-header">
+        <h3>Dettagli di @{detailsUser}</h3>
+        <button className="close" onClick={closeDetails} aria-label="Chiudi">✕</button>
+      </div>
+      <div className="modal-body">
+        {detailsLoading ? (
+          <div className="muted">Caricamento…</div>
+        ) : detailsRows.length === 0 ? (
+          <div className="muted">Nessun dettaglio disponibile.</div>
+        ) : (
+          <ul className="details-list">
+            {detailsRows.map((r) => (
+              <li key={r.question_id}>
+                <div className="qline">
+                  <span className="badge">#{r.ord}</span>
+                  <span className="qtxt">{r.question_text}</span>
+                </div>
+                <div className="chips">
+                  {r.options.map((opt, idx) => {
+                    const selected = r.selected_index_shown === idx;
+                    const corr = r.is_correct === true && selected;
+                    const wrong = r.is_correct === false && selected;
+                    return (
+                      <span
+                        key={idx}
+                        className={
+                          "chip " +
+                          (corr ? "ok" : "") +
+                          (wrong ? "ko" : "") +
+                          (selected ? " sel" : "")
+                        }
+                        title={selected ? (corr ? "Risposta corretta" : "Risposta errata") : ""}
+                      >
+                        {String.fromCharCode(65 + idx)}. {opt}
+                      </span>
+                    );
+                  })}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  </>
+)}
+
+
+
           </div>
         </aside>
 
