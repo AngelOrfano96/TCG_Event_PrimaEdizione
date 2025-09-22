@@ -359,8 +359,8 @@ const startLockedBecauseOfFlag = useMemo(() => {
 
       <header className="brand">
         <div className="logo">⚡</div>
-        <h1>Pokémon Gen1 Quiz</h1>
-        <div className="sub">Gara a premi — 15 domande • 1 solo vincitore</div>
+        <h1>TCG ARC - Event Prima Edizione</h1>
+        <div className="sub">Ottieni la possibilità di acquistare il charizard ad 1 € — 15 domande • 1 solo vincitore</div>
         <button className="lb-toggle" onClick={() => setDrawerOpen(true)} aria-label="Apri classifica">🏆</button>
       </header>
 
@@ -388,7 +388,7 @@ const startLockedBecauseOfFlag = useMemo(() => {
                 onChange={(e) => setSearchQ(e.target.value)}
               />
               <button type="submit" className="secondary" disabled={searchLoading}>
-                Cerca
+                🔍
               </button>
             </form>
 
