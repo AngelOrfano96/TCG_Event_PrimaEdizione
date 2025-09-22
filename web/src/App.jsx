@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import "./index.css";
 import { supabase, envOk } from "./lib/supabaseClient";
 
 const PAGE_SIZE = 10;
-const refreshing = useRef(false);
-const scheduleLBRefreshRef = useRef(() => {});
 
 export default function App() {
   if (!envOk) {
@@ -15,16 +13,7 @@ export default function App() {
       </div>
     );
   }
-const scheduleLBRefresh = useCallback(() => {
-  if (refreshing.current) return;
-  refreshing.current = true;
-  setTimeout(async () => {
-    await fetchLeaderboard(page);
-    if (runId) fetchMyRank(runId);
-    if (searchQ) doSearch();
-    refreshing.current = false;
-  }, 1000); // max 1 refresh/s
-}, [page, runId, searchQ]);
+
   // ===== Stato utente/run =====
   const [username, setUsername] = useState("");
   const [needCode, setNeedCode] = useState(false);
@@ -37,25 +26,25 @@ const scheduleLBRefresh = useCallback(() => {
   const [finished, setFinished] = useState(false);
   const [isWinner, setIsWinner] = useState(false);
   const [rank, setRank] = useState(null);
+
   // ===== MODALE DETTAGLI RUN =====
-const [detailsOpen, setDetailsOpen] = useState(false);
-const [detailsUser, setDetailsUser] = useState("");
-const [detailsLoading, setDetailsLoading] = useState(false);
-const [detailsRows, setDetailsRows] = useState([]);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsUser, setDetailsUser] = useState("");
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsRows, setDetailsRows] = useState([]);
 
-async function openDetails(runId, user) {
-  setDetailsUser(user);
-  setDetailsOpen(true);
-  setDetailsLoading(true);
-  const { data, error } = await supabase.rpc("get_run_details", { p_run_id: runId });
-  if (!error) setDetailsRows(Array.isArray(data) ? data : []);
-  setDetailsLoading(false);
-}
-function closeDetails() {
-  setDetailsOpen(false);
-  setDetailsRows([]);
-}
-
+  async function openDetails(runId, user) {
+    setDetailsUser(user);
+    setDetailsOpen(true);
+    setDetailsLoading(true);
+    const { data, error } = await supabase.rpc("get_run_details", { p_run_id: runId });
+    if (!error) setDetailsRows(Array.isArray(data) ? data : []);
+    setDetailsLoading(false);
+  }
+  function closeDetails() {
+    setDetailsOpen(false);
+    setDetailsRows([]);
+  }
 
   // ===== Flags globali (da DB) =====
   const [isStartEnabled, setIsStartEnabled] = useState(false);
@@ -157,85 +146,82 @@ function closeDetails() {
     setHighlightRunId(runId);
     setTimeout(() => setHighlightRunId(null), 2000);
   }
-// ===== Realtime solo per FLAGS (stabile) =====
-useEffect(() => {
-  // lettura immediata all’avvio
-  fetchFlags();
 
-  const flagsChannel = supabase
-    .channel('flags-channel')
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'quiz', table: 'runtime_flags', filter: 'id=eq.1' },
-      () => fetchFlags()
-    )
-    .on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'quiz', table: 'runtime_flags', filter: 'id=eq.1' },
-      () => fetchFlags()
-    )
-    .subscribe();
+  // ===== Throttle per la leaderboard (1 refresh/sec) =====
+  const scheduleLBRefreshRef = useRef(() => {});
+  useEffect(() => {
+    let refreshing = false;
+    scheduleLBRefreshRef.current = () => {
+      if (refreshing) return;
+      refreshing = true;
+      setTimeout(async () => {
+        await fetchLeaderboard(page);
+        if (runId) await fetchMyRank(runId);
+        if (searchQ) await doSearch();
+        refreshing = false;
+      }, 1000);
+    };
+  }, [page, runId, searchQ]);
 
-  // Fallback: se i WS sono filtrati, riallinea ogni 10s
-  const poll = setInterval(fetchFlags, 10000);
+  // ===== Realtime solo per FLAGS (stabile) =====
+  useEffect(() => {
+    fetchFlags(); // lettura immediata all’avvio
 
-  return () => {
-    clearInterval(poll);
-    supabase.removeChannel(flagsChannel);
-  };
-}, []); // <-- IMPORTANTISSIMO: dipendenze vuote
+    const flagsChannel = supabase
+      .channel("flags-channel")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "quiz", table: "runtime_flags", filter: "id=eq.1" },
+        () => fetchFlags()
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "quiz", table: "runtime_flags", filter: "id=eq.1" },
+        () => fetchFlags()
+      )
+      .subscribe();
 
-  // ===== Realtime: leaderboard + winners + flags =====
-useEffect(() => {
-  fetchFlags();
-  fetchLeaderboard(0);
+    // Fallback: WS down → polling
+    const poll = setInterval(fetchFlags, 10000);
 
-  const channel = supabase
-    .channel("lb+flags")
-    .on("postgres_changes", { event: "*", schema: "quiz", table: "quiz_runs" }, () => {
-      scheduleLBRefreshRef.current();   // 👈 invece di fetchLeaderboard(...)
-    })
-    .on("postgres_changes", { event: "*", schema: "quiz", table: "winners" }, () => {
-      scheduleLBRefreshRef.current();   // 👈
-    })
-    .on("postgres_changes", { event: "*", schema: "quiz", table: "runtime_flags" }, () => {
-      fetchFlags();                     // i flag li puoi aggiornare subito
-    })
-    .subscribe();
+    return () => {
+      clearInterval(poll);
+      supabase.removeChannel(flagsChannel);
+    };
+  }, []); // deps vuote
 
-  return () => supabase.removeChannel(channel);
-  // 👇 IMPORTANTISSIMO: non mettere dipendenze qui, altrimenti ti riscrivi il canale a ogni cambio pagina
-}, []); // <--- deps vuote
+  // ===== Realtime: leaderboard + winners =====
+  useEffect(() => {
+    fetchLeaderboard(0); // prima pagina a freddo
+
+    const channel = supabase
+      .channel("lb")
+      .on("postgres_changes", { event: "*", schema: "quiz", table: "quiz_runs" }, () => {
+        scheduleLBRefreshRef.current();
+      })
+      .on("postgres_changes", { event: "*", schema: "quiz", table: "winners" }, () => {
+        scheduleLBRefreshRef.current();
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, []); // deps vuote (importantissimo)
 
   // ===== START / RESUME =====
-const startLockedBecauseOfFlag = useMemo(() => {
-  if (!isStartEnabled) return true;
-  if (startAt && Date.now() < startAt) return true;
-  return false;
-}, [isStartEnabled, startAt]);
-
-<button
-  onClick={handleStart}
-  disabled={loading || startLockedBecauseOfFlag}
-  title={
-    startLockedBecauseOfFlag
-      ? (startAt && Date.now() < startAt
-          ? `Apertura tra ${startCountdown || ""}`
-          : "La gara non è ancora aperta")
-      : ""
-  }
->
-  {needCode ? "Riprendi" : "Start"}
-</button>
-
+  const startLockedBecauseOfFlag = useMemo(() => {
+    if (!isStartEnabled) return true;
+    if (startAt && Date.now() < startAt) return true;
+    return false;
+  }, [isStartEnabled, startAt]);
 
   async function handleStart() {
     const u = username.trim();
     if (!u) return alert("Inserisci il tuo username TikTok");
     if (startLockedBecauseOfFlag) {
-      const msg = startAt && Date.now() < startAt
-        ? `La gara non è ancora aperta. Apertura tra ${startCountdown || ""}.`
-        : "La gara non è ancora aperta.";
+      const msg =
+        startAt && Date.now() < startAt
+          ? `La gara non è ancora aperta. Apertura tra ${startCountdown || ""}.`
+          : "La gara non è ancora aperta.";
       alert(msg);
       return;
     }
@@ -278,6 +264,7 @@ const startLockedBecauseOfFlag = useMemo(() => {
       localStorage.setItem("pq_run_id", row.run_id);
       localStorage.setItem("pq_secret", row.secret_code);
 
+      // aggiornamenti iniziali
       fetchLeaderboard(page);
       fetchMyRank(row.run_id);
     } finally {
@@ -285,7 +272,7 @@ const startLockedBecauseOfFlag = useMemo(() => {
     }
   }
 
-  // ===== Selezione / Invio (invariati) =====
+  // ===== Selezione / Invio =====
   function handleSelect(idx, optionIndex) {
     setQuestions((qs) => {
       const next = [...qs];
@@ -327,6 +314,7 @@ const startLockedBecauseOfFlag = useMemo(() => {
         alert(row?.is_winner ? "🎉 Sei il VINCITORE!" : "Hai fatto 15/15! Ma il vincitore è già stato assegnato.");
       }
 
+      // refresh list/search
       fetchLeaderboard(page);
       fetchMyRank(runId);
       if (searchQ) doSearch();
@@ -339,19 +327,7 @@ const startLockedBecauseOfFlag = useMemo(() => {
     const hasWrong = questions.some((q) => !q.locked);
     if (!hasWrong) alert("Non ci sono domande da ritentare.");
   }
-useEffect(() => {
-  let refreshing = false;
-  scheduleLBRefreshRef.current = () => {
-    if (refreshing) return;
-    refreshing = true;
-    setTimeout(async () => {
-      await fetchLeaderboard(page);
-      if (runId) await fetchMyRank(runId);
-      if (searchQ) await doSearch();
-      refreshing = false;
-    }, 1000); // ⏱️ max 1 refresh al secondo
-  };
-}, [page, runId, searchQ]);
+
   // Prefill
   useEffect(() => {
     const savedUser = localStorage.getItem("pq_username");
@@ -444,7 +420,13 @@ useEffect(() => {
                   className={`${row.is_winner ? "winner" : ""} ${highlightRunId === row.run_id ? "hl" : ""}`}
                 >
                   <span className="pos">{i + 1 + page * PAGE_SIZE}</span>
-                  <span className="user linkish" onClick={() => openDetails(row.run_id, row.username)} title="Vedi dettagli run">@{row.username}</span>
+                  <span
+                    className="user linkish"
+                    onClick={() => openDetails(row.run_id, row.username)}
+                    title="Vedi dettagli run"
+                  >
+                    @{row.username}
+                  </span>
                   <span className="score">{row.score}/15</span>
                   <span className="time">{Math.round((row.elapsed_ms || 0) / 1000)}s</span>
                   {row.is_winner && <span className="badge">Vincitore</span>}
@@ -482,60 +464,57 @@ useEffect(() => {
               )}
             </div>
 
-
-{detailsOpen && (
-  <>
-    <div className="modal-backdrop" onClick={closeDetails} />
-    <div className="modal">
-      <div className="modal-header">
-        <h3>Dettagli di @{detailsUser}</h3>
-        <button className="close" onClick={closeDetails} aria-label="Chiudi">✕</button>
-      </div>
-      <div className="modal-body">
-        {detailsLoading ? (
-          <div className="muted">Caricamento…</div>
-        ) : detailsRows.length === 0 ? (
-          <div className="muted">Nessun dettaglio disponibile.</div>
-        ) : (
-          <ul className="details-list">
-            {detailsRows.map((r) => (
-              <li key={r.question_id}>
-                <div className="qline">
-                  <span className="badge">#{r.ord}</span>
-                  <span className="qtxt">{r.question_text}</span>
+            {/* Modale dettagli */}
+            {detailsOpen && (
+              <>
+                <div className="modal-backdrop" onClick={closeDetails} />
+                <div className="modal">
+                  <div className="modal-header">
+                    <h3>Dettagli di @{detailsUser}</h3>
+                    <button className="close" onClick={closeDetails} aria-label="Chiudi">✕</button>
+                  </div>
+                  <div className="modal-body">
+                    {detailsLoading ? (
+                      <div className="muted">Caricamento…</div>
+                    ) : detailsRows.length === 0 ? (
+                      <div className="muted">Nessun dettaglio disponibile.</div>
+                    ) : (
+                      <ul className="details-list">
+                        {detailsRows.map((r) => (
+                          <li key={r.question_id}>
+                            <div className="qline">
+                              <span className="badge">#{r.ord}</span>
+                              <span className="qtxt">{r.question_text}</span>
+                            </div>
+                            <div className="chips">
+                              {r.options.map((opt, idx) => {
+                                const selected = r.selected_index_shown === idx;
+                                const corr = r.is_correct === true && selected;
+                                const wrong = r.is_correct === false && selected;
+                                return (
+                                  <span
+                                    key={idx}
+                                    className={
+                                      "chip " +
+                                      (corr ? "ok" : "") +
+                                      (wrong ? "ko" : "") +
+                                      (selected ? " sel" : "")
+                                    }
+                                    title={selected ? (corr ? "Risposta corretta" : "Risposta errata") : ""}
+                                  >
+                                    {String.fromCharCode(65 + idx)}. {opt}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
-                <div className="chips">
-                  {r.options.map((opt, idx) => {
-                    const selected = r.selected_index_shown === idx;
-                    const corr = r.is_correct === true && selected;
-                    const wrong = r.is_correct === false && selected;
-                    return (
-                      <span
-                        key={idx}
-                        className={
-                          "chip " +
-                          (corr ? "ok" : "") +
-                          (wrong ? "ko" : "") +
-                          (selected ? " sel" : "")
-                        }
-                        title={selected ? (corr ? "Risposta corretta" : "Risposta errata") : ""}
-                      >
-                        {String.fromCharCode(65 + idx)}. {opt}
-                      </span>
-                    );
-                  })}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  </>
-)}
-
-
-
+              </>
+            )}
           </div>
         </aside>
 
