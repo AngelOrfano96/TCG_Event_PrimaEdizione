@@ -38,8 +38,11 @@ export default function App() {
     }))
   );
 
-  // Progress (quante corrette bloccate)
-  const correctCount = useMemo(() => questions.filter(q => q.locked).length, [questions]);
+  // Leaderboard (live)
+  const [leaderboard, setLeaderboard] = useState([]);
+
+  // Progress
+  const correctCount = useMemo(() => questions.filter((q) => q.locked).length, [questions]);
   const progressPct = Math.round((correctCount / 15) * 100);
 
   // Timer visivo
@@ -55,13 +58,46 @@ export default function App() {
     return startedAt ? `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}` : "--:--";
   }, [elapsedMs, startedAt]);
 
+  // Helpers: leaderboard + rank
+  async function fetchLeaderboard() {
+    const { data, error } = await supabase.rpc("get_leaderboard", { p_limit: 20 });
+    if (!error) setLeaderboard(Array.isArray(data) ? data : []);
+  }
+  async function fetchMyRank(id) {
+    if (!id) return;
+    const { data, error } = await supabase.rpc("get_rank", { p_run_id: id });
+    if (!error && typeof data === "number") setRank(data);
+  }
+
+  // Realtime subscription per aggiornare classifica e rank
+  useEffect(() => {
+    fetchLeaderboard();
+    if (runId) fetchMyRank(runId);
+
+    const channel = supabase
+      .channel("lb")
+      .on("postgres_changes", { event: "*", schema: "quiz", table: "quiz_runs" }, () => {
+        fetchLeaderboard();
+        if (runId) fetchMyRank(runId);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId]);
+
   // START / RESUME
   async function handleStart() {
     const u = username.trim();
-    if (!u) { alert("Inserisci il tuo username TikTok"); return; }
+    if (!u) {
+      alert("Inserisci il tuo username TikTok");
+      return;
+    }
     setLoading(true);
     try {
-      const payloadCode = needCode ? secretCode.trim() || null : (secretCode || null);
+      const payloadCode = needCode ? secretCode.trim() || null : secretCode || null;
       const { data, error } = await supabase.rpc("start_run", {
         p_username: u,
         p_reclaim_code: payloadCode,
@@ -74,7 +110,9 @@ export default function App() {
           alert("Esiste già una partita attiva per questo username. Inserisci il codice segreto per riprenderla.");
           return;
         }
-        console.error(error); alert("Errore nello start."); return;
+        console.error(error);
+        alert("Errore nello start.");
+        return;
       }
 
       const row = Array.isArray(data) ? data[0] : data;
@@ -90,12 +128,20 @@ export default function App() {
       setStartedAt(new Date(row.started_at).getTime());
       setSecretCode(row.secret_code);
       setQuestions(q);
-      setFinished(false); setIsWinner(false); setRank(null);
+      setFinished(false);
+      setIsWinner(false);
+      setRank(null);
 
       localStorage.setItem("pq_username", u);
       localStorage.setItem("pq_run_id", row.run_id);
       localStorage.setItem("pq_secret", row.secret_code);
-    } finally { setLoading(false); }
+
+      // aggiorna classifica e posizione
+      fetchLeaderboard();
+      fetchMyRank(row.run_id);
+    } finally {
+      setLoading(false);
+    }
   }
 
   // Selezione
@@ -116,7 +162,10 @@ export default function App() {
       .filter((q) => !q.locked && q.selected !== null)
       .map((q) => ({ question_id: q.id, selected_index_shown: q.selected }));
 
-    if (payload.length === 0) { alert("Seleziona almeno una risposta."); return; }
+    if (payload.length === 0) {
+      alert("Seleziona almeno una risposta.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -128,18 +177,20 @@ export default function App() {
 
       if (error) {
         const msg = String(error.message || "");
-        if (msg.includes("RATE_LIMIT")) { alert("Attendi 2 secondi tra i tentativi."); return; }
-        console.error(error); alert("Errore nell'invio."); return;
+        if (msg.includes("RATE_LIMIT")) {
+          alert("Attendi 2 secondi tra i tentativi.");
+          return;
+        }
+        console.error(error);
+        alert("Errore nell'invio.");
+        return;
       }
 
       const row = Array.isArray(data) ? data[0] : data;
       const wrong = row?.wrong_ids || [];
       const score = row?.score ?? 0;
 
-      setQuestions((qs) =>
-        qs.map((q) => ({ ...q, locked: !wrong.includes(q.id) }))
-      );
-
+      setQuestions((qs) => qs.map((q) => ({ ...q, locked: !wrong.includes(q.id) })));
       setIsWinner(Boolean(row?.is_winner));
       setRank(row?.rank ?? null);
 
@@ -147,7 +198,13 @@ export default function App() {
         setFinished(true);
         alert(row?.is_winner ? "🎉 Sei il VINCITORE!" : "Hai fatto 15/15! Ma il vincitore è già stato assegnato.");
       }
-    } finally { setLoading(false); }
+
+      // refresh classifica/posizione
+      fetchLeaderboard();
+      fetchMyRank(runId);
+    } finally {
+      setLoading(false);
+    }
   }
 
   function handleRetry() {
@@ -162,13 +219,6 @@ export default function App() {
     if (savedUser) setUsername(savedUser);
     if (savedSecret) setSecretCode(savedSecret);
   }, []);
-
-  // Leaderboard placeholder (realtime nel prossimo step)
-  const leaderboard = [
-    { username: "winner", score: 15, elapsedMs: 42000, isWinner: true },
-    { username: "ash", score: 13, elapsedMs: 51000, isWinner: false },
-    { username: "misty", score: 12, elapsedMs: 48000, isWinner: false },
-  ];
 
   return (
     <div className="container">
@@ -186,26 +236,22 @@ export default function App() {
           </div>
           <div className="card-body">
             <ul className="lb">
-              {leaderboard
-                .sort((a, b) => {
-                  if (a.isWinner !== b.isWinner) return Number(b.isWinner) - Number(a.isWinner);
-                  if (a.score !== b.score) return b.score - a.score;
-                  return a.elapsedMs - b.elapsedMs;
-                })
-                .map((row, i) => (
-                  <li key={row.username} className={row.isWinner ? "winner" : ""}>
-                    <span className="pos">{i + 1}</span>
-                    <span className="user">@{row.username}</span>
-                    <span className="score">{row.score}/15</span>
-                    <span className="time">{Math.round(row.elapsedMs / 1000)}s</span>
-                    {row.isWinner && <span className="badge">Vincitore</span>}
-                  </li>
-                ))}
+              {leaderboard.map((row, i) => (
+                <li key={row.run_id} className={row.is_winner ? "winner" : ""}>
+                  <span className="pos">{i + 1}</span>
+                  <span className="user">@{row.username}</span>
+                  <span className="score">{row.score}/15</span>
+                  <span className="time">{Math.round((row.elapsed_ms || 0) / 1000)}s</span>
+                  {row.is_winner && <span className="badge">Vincitore</span>}
+                </li>
+              ))}
             </ul>
 
             <div className="you" style={{ marginTop: 12 }}>
               {username ? (
-                <div><strong>@{username}</strong> — la tua posizione: {rank ?? "…"} {isWinner ? " (Vincitore)" : ""}</div>
+                <div>
+                  <strong>@{username}</strong> — la tua posizione: {rank ?? "…"} {isWinner ? " (Vincitore)" : ""}
+                </div>
               ) : (
                 <div>Inserisci il tuo username per vedere la posizione</div>
               )}
