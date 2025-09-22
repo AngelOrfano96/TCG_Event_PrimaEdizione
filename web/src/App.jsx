@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import "./index.css";
 import { supabase, envOk } from "./lib/supabaseClient";
 
-if (!envOk) {
+
+
+export default function App() {
+
+  if (!envOk) {
   return (
     <div style={{ padding: 24, fontFamily: "system-ui" }}>
       ⚠️ Config mancante: aggiungi <code>VITE_SUPABASE_URL</code> e{" "}
@@ -10,8 +14,6 @@ if (!envOk) {
     </div>
   );
 }
-
-export default function App() {
   // Stato utente
   const [username, setUsername] = useState("");
   const [needCode, setNeedCode] = useState(false);
