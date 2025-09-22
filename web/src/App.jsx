@@ -21,7 +21,7 @@ export default function App() {
 
   const [runId, setRunId] = useState(null);
   const [startedAt, setStartedAt] = useState(null);
-  const [finishedAt, setFinishedAt] = useState(null); // <-- STOP TIMER QUI
+  const [finishedAt, setFinishedAt] = useState(null); // ferma timer quando pieno
   const [loading, setLoading] = useState(false);
   const [finished, setFinished] = useState(false);
   const [isWinner, setIsWinner] = useState(false);
@@ -63,8 +63,9 @@ export default function App() {
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const [drawerOpen, setDrawerOpen] = useState(false); // mobile drawer
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [winnerName, setWinnerName] = useState(null);
+  const [highlightRunId, setHighlightRunId] = useState(null);
 
   async function fetchLeaderboard(p = page) {
     const { data, error } = await supabase.rpc("get_leaderboard", {
@@ -85,22 +86,54 @@ export default function App() {
     if (!error && typeof data === "number") setRank(data);
   }
 
+  // ===== Ricerca concorrente =====
+  const [searchQ, setSearchQ] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  async function doSearch() {
+    const q = searchQ.trim();
+    if (!q) {
+      setSearchResults([]);
+      return;
+    }
+    setSearchLoading(true);
+    const { data, error } = await supabase.rpc("search_ranks", {
+      p_query: q,
+      p_limit: 20,
+      p_offset: 0,
+    });
+    setSearchLoading(false);
+    if (!error) setSearchResults(Array.isArray(data) ? data : []);
+  }
+
+  function jumpToRank(rank, runId) {
+    const targetPage = Math.floor((rank - 1) / PAGE_SIZE);
+    setPage(targetPage);
+    setDrawerOpen(false);
+    // evidenzia entry quando cambia la pagina/carica i dati
+    setHighlightRunId(runId);
+    // rimuovi highlight dopo 2s
+    setTimeout(() => setHighlightRunId(null), 2000);
+  }
+
   useEffect(() => {
     fetchLeaderboard(0);
-    // realtime
     const channel = supabase
       .channel("lb")
       .on("postgres_changes", { event: "*", schema: "quiz", table: "quiz_runs" }, () => {
         fetchLeaderboard(page);
         if (runId) fetchMyRank(runId);
+        if (searchQ) doSearch();
       })
       .on("postgres_changes", { event: "*", schema: "quiz", table: "winners" }, () => {
         fetchLeaderboard(page);
+        if (searchQ) doSearch();
       })
       .subscribe();
     return () => supabase.removeChannel(channel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, runId]);
+  }, [page, runId, searchQ]);
 
   // ===== START / RESUME =====
   async function handleStart() {
@@ -134,7 +167,7 @@ export default function App() {
       }));
       setRunId(row.run_id);
       setStartedAt(new Date(row.started_at).getTime());
-      setFinishedAt(row.finished_at ? new Date(row.finished_at).getTime() : null); // <-- stop se già finita
+      setFinishedAt(row.finished_at ? new Date(row.finished_at).getTime() : null);
       setSecretCode(row.secret_code);
       setQuestions(q);
       setFinished(Boolean(row.finished_at));
@@ -191,7 +224,6 @@ export default function App() {
       setIsWinner(Boolean(row?.is_winner));
       setRank(row?.rank ?? null);
 
-      // STOP TIMER se abbiamo finito: prendiamo finished_at dal server
       if (row?.finished_at) {
         setFinished(true);
         setFinishedAt(new Date(row.finished_at).getTime());
@@ -200,6 +232,7 @@ export default function App() {
 
       fetchLeaderboard(page);
       fetchMyRank(runId);
+      if (searchQ) doSearch();
     } finally {
       setLoading(false);
     }
@@ -243,9 +276,55 @@ export default function App() {
             <button className="close" onClick={() => setDrawerOpen(false)} aria-label="Chiudi">✕</button>
           </div>
           <div className="card-body">
+
+            {/* --- Barra di ricerca --- */}
+            <form
+              className="searchbar"
+              onSubmit={(e) => {
+                e.preventDefault();
+                doSearch();
+              }}
+            >
+              <input
+                type="text"
+                placeholder="Cerca username (es. @ash)"
+                value={searchQ}
+                onChange={(e) => setSearchQ(e.target.value)}
+              />
+              <button type="submit" className="secondary" disabled={searchLoading}>
+                Cerca
+              </button>
+            </form>
+
+            {/* Risultati ricerca */}
+            {searchQ && (
+              <div className="search-results">
+                {searchLoading ? (
+                  <div className="muted">Ricerca…</div>
+                ) : searchResults.length ? (
+                  <ul>
+                    {searchResults.map((r) => (
+                      <li key={r.run_id}>
+                        <span className="rk">#{r.rank}</span>
+                        <span className="name">@{r.username}</span>
+                        <span className="mini">{r.score}/15 • {Math.round((r.elapsed_ms || 0) / 1000)}s</span>
+                        <button onClick={() => jumpToRank(r.rank, r.run_id)}>Vai</button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="muted">Nessun risultato per “{searchQ}”.</div>
+                )}
+              </div>
+            )}
+
+            {/* Lista leaderboard */}
             <ul className="lb">
               {leaderboard.map((row, i) => (
-                <li key={row.run_id} className={row.is_winner ? "winner" : ""}>
+                <li
+                  key={row.run_id}
+                  className={`${row.is_winner ? "winner" : ""} ${highlightRunId === row.run_id ? "hl" : ""}`}
+                >
                   <span className="pos">{i + 1 + page * PAGE_SIZE}</span>
                   <span className="user">@{row.username}</span>
                   <span className="score">{row.score}/15</span>
