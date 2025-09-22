@@ -6,14 +6,15 @@ import { supabase, envOk } from "./lib/supabaseClient";
 
 export default function App() {
 
-  if (!envOk) {
-  return (
-    <div style={{ padding: 24, fontFamily: "system-ui" }}>
-      ⚠️ Config mancante: aggiungi <code>VITE_SUPABASE_URL</code> e{" "}
-      <code>VITE_SUPABASE_ANON_KEY</code> su Render e ridistribuisci.
-    </div>
-  );
-}
+   if (!envOk) {
+    return (
+      <div style={{ padding: 24, fontFamily: "system-ui" }}>
+        ⚠️ Config mancante: aggiungi <code>VITE_SUPABASE_URL</code> e{" "}
+        <code>VITE_SUPABASE_ANON_KEY</code> nelle Environment Variables di Render,
+        poi rifai il deploy (Clear build cache + Deploy).
+      </div>
+    );
+  }
   // Stato utente
   const [username, setUsername] = useState("");
   const [needCode, setNeedCode] = useState(false);

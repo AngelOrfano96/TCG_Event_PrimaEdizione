@@ -1,13 +1,17 @@
+// web/src/lib/supabaseClient.js
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const url = import.meta.env.VITE_SUPABASE_URL;
+const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnon) {
-  console.warn("Supabase env vars mancanti. Configura .env.local");
-}
+// true se entrambe le env sono presenti
+export const envOk = Boolean(url && anon);
 
-export const supabase = createClient(supabaseUrl, supabaseAnon, {
-  auth: { persistSession: false },
-  realtime: { params: { eventsPerSecond: 5 } },
-});
+// Esporta sempre qualcosa: se env mancano, supabase resta null
+export const supabase = envOk
+  ? createClient(url, anon, {
+      auth: { persistSession: false },
+      realtime: { params: { eventsPerSecond: 5 } },
+    })
+  : null;
+
