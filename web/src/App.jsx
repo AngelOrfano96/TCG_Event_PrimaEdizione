@@ -21,13 +21,28 @@ export default function App() {
 
   const [runId, setRunId] = useState(null);
   const [startedAt, setStartedAt] = useState(null);
-  const [finishedAt, setFinishedAt] = useState(null); // ferma timer quando pieno
+  const [finishedAt, setFinishedAt] = useState(null);
   const [loading, setLoading] = useState(false);
   const [finished, setFinished] = useState(false);
   const [isWinner, setIsWinner] = useState(false);
   const [rank, setRank] = useState(null);
 
-  // ===== Timer visivo =====
+  // ===== Flags globali (da DB) =====
+  const [isStartEnabled, setIsStartEnabled] = useState(false);
+  const [startAt, setStartAt] = useState(null); // timestamptz
+  const [hostBanner, setHostBanner] = useState(null);
+
+  async function fetchFlags() {
+    const { data } = await supabase.rpc("get_runtime_flags");
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row) {
+      setIsStartEnabled(!!row.is_start_enabled);
+      setStartAt(row.start_at ? new Date(row.start_at).getTime() : null);
+      setHostBanner(row.banner || null);
+    }
+  }
+
+  // ===== Timer visivo (gioco) + countdown apertura =====
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 250);
@@ -45,6 +60,16 @@ export default function App() {
     return startedAt ? `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}` : "--:--";
   }, [elapsedMs, startedAt]);
 
+  const startCountdown = useMemo(() => {
+    if (!startAt) return null;
+    const diff = startAt - now;
+    if (diff <= 0) return "00:00";
+    const s = Math.ceil(diff / 1000);
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+  }, [startAt, now]);
+
   // ===== Domande =====
   const [questions, setQuestions] = useState(
     Array.from({ length: 15 }, (_, i) => ({
@@ -58,7 +83,7 @@ export default function App() {
   const correctCount = useMemo(() => questions.filter((q) => q.locked).length, [questions]);
   const progressPct = Math.round((correctCount / 15) * 100);
 
-  // ===== Leaderboard (live + paginazione) =====
+  // ===== Leaderboard (live + paginazione + ricerca) =====
   const [leaderboard, setLeaderboard] = useState([]);
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
@@ -67,60 +92,48 @@ export default function App() {
   const [winnerName, setWinnerName] = useState(null);
   const [highlightRunId, setHighlightRunId] = useState(null);
 
+  const [searchQ, setSearchQ] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
   async function fetchLeaderboard(p = page) {
-    const { data, error } = await supabase.rpc("get_leaderboard", {
+    const { data } = await supabase.rpc("get_leaderboard", {
       p_limit: PAGE_SIZE,
       p_offset: p * PAGE_SIZE,
     });
-    if (!error) {
-      const rows = Array.isArray(data) ? data : [];
-      setLeaderboard(rows);
-      setTotalCount(rows.length ? Number(rows[0].total_count) : 0);
-      const topWinner = rows.find((r) => r.is_winner);
-      setWinnerName(topWinner ? topWinner.username : null);
-    }
+    const rows = Array.isArray(data) ? data : [];
+    setLeaderboard(rows);
+    setTotalCount(rows.length ? Number(rows[0].total_count) : 0);
+    const topWinner = rows.find((r) => r.is_winner);
+    setWinnerName(topWinner ? topWinner.username : null);
   }
   async function fetchMyRank(id) {
     if (!id) return;
     const { data, error } = await supabase.rpc("get_rank", { p_run_id: id });
     if (!error && typeof data === "number") setRank(data);
   }
-
-  // ===== Ricerca concorrente =====
-  const [searchQ, setSearchQ] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-
   async function doSearch() {
     const q = searchQ.trim();
-    if (!q) {
-      setSearchResults([]);
-      return;
-    }
+    if (!q) return setSearchResults([]);
     setSearchLoading(true);
-    const { data, error } = await supabase.rpc("search_ranks", {
-      p_query: q,
-      p_limit: 20,
-      p_offset: 0,
-    });
+    const { data } = await supabase.rpc("search_ranks", { p_query: q, p_limit: 20, p_offset: 0 });
     setSearchLoading(false);
-    if (!error) setSearchResults(Array.isArray(data) ? data : []);
+    setSearchResults(Array.isArray(data) ? data : []);
   }
-
   function jumpToRank(rank, runId) {
     const targetPage = Math.floor((rank - 1) / PAGE_SIZE);
     setPage(targetPage);
     setDrawerOpen(false);
-    // evidenzia entry quando cambia la pagina/carica i dati
     setHighlightRunId(runId);
-    // rimuovi highlight dopo 2s
     setTimeout(() => setHighlightRunId(null), 2000);
   }
 
+  // ===== Realtime: leaderboard + winners + flags =====
   useEffect(() => {
+    fetchFlags();
     fetchLeaderboard(0);
     const channel = supabase
-      .channel("lb")
+      .channel("lb+flags")
       .on("postgres_changes", { event: "*", schema: "quiz", table: "quiz_runs" }, () => {
         fetchLeaderboard(page);
         if (runId) fetchMyRank(runId);
@@ -130,15 +143,32 @@ export default function App() {
         fetchLeaderboard(page);
         if (searchQ) doSearch();
       })
+      .on("postgres_changes", { event: "*", schema: "quiz", table: "runtime_flags" }, () => {
+        fetchFlags();
+      })
       .subscribe();
     return () => supabase.removeChannel(channel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, runId, searchQ]);
 
   // ===== START / RESUME =====
+  const startLockedBecauseOfFlag = useMemo(() => {
+    // Bloccato se flag false o se c'è una start_at futura
+    if (!isStartEnabled) return true;
+    if (startAt && Date.now() < startAt) return true;
+    return false;
+  }, [isStartEnabled, startAt]);
+
   async function handleStart() {
     const u = username.trim();
     if (!u) return alert("Inserisci il tuo username TikTok");
+    if (startLockedBecauseOfFlag) {
+      const msg = startAt && Date.now() < startAt
+        ? `La gara non è ancora aperta. Apertura tra ${startCountdown || ""}.`
+        : "La gara non è ancora aperta.";
+      alert(msg);
+      return;
+    }
     setLoading(true);
     try {
       const payloadCode = needCode ? secretCode.trim() || null : secretCode || null;
@@ -185,7 +215,7 @@ export default function App() {
     }
   }
 
-  // ===== Selezione =====
+  // ===== Selezione / Invio (invariati) =====
   function handleSelect(idx, optionIndex) {
     setQuestions((qs) => {
       const next = [...qs];
@@ -195,7 +225,6 @@ export default function App() {
     });
   }
 
-  // ===== INVIO =====
   async function handleSubmit() {
     if (!runId) return;
     const payload = questions
@@ -218,8 +247,6 @@ export default function App() {
       }
       const row = Array.isArray(data) ? data[0] : data;
       const wrong = row?.wrong_ids || [];
-      const score = row?.score ?? 0;
-
       setQuestions((qs) => qs.map((q) => ({ ...q, locked: !wrong.includes(q.id) })));
       setIsWinner(Boolean(row?.is_winner));
       setRank(row?.rank ?? null);
@@ -253,10 +280,20 @@ export default function App() {
 
   return (
     <div className="container">
-      {/* ===== Winner banner ===== */}
+      {/* Banner vincitore (se c'è) */}
       {winnerName && (
         <div className="winner-banner">
           🏆 Vincitore: <strong>@{winnerName}</strong> — la gara prosegue per il podio!
+        </div>
+      )}
+
+      {/* Banner host opzionale (dai flag) */}
+      {hostBanner && !winnerName && (
+        <div className="winner-banner" style={{ borderColor: "rgba(102,224,255,.5)" }}>
+          ℹ️ {hostBanner}
+          {startAt && Date.now() < startAt ? (
+            <> — Apertura tra <strong>{startCountdown}</strong></>
+          ) : null}
         </div>
       )}
 
@@ -264,7 +301,6 @@ export default function App() {
         <div className="logo">⚡</div>
         <h1>Pokémon Gen1 Quiz</h1>
         <div className="sub">Gara a premi — 15 domande • 1 solo vincitore</div>
-        {/* Mobile toggle */}
         <button className="lb-toggle" onClick={() => setDrawerOpen(true)} aria-label="Apri classifica">🏆</button>
       </header>
 
@@ -400,7 +436,17 @@ export default function App() {
               )}
 
               {!runId ? (
-                <button onClick={handleStart} disabled={loading}>
+                <button
+                  onClick={handleStart}
+                  disabled={loading || startLockedBecauseOfFlag}
+                  title={
+                    startLockedBecauseOfFlag
+                      ? (startAt && Date.now() < startAt
+                          ? `Apertura tra ${startCountdown || ""}`
+                          : "La gara non è ancora aperta")
+                      : ""
+                  }
+                >
                   {needCode ? "Riprendi" : "Start"}
                 </button>
               ) : (
@@ -450,7 +496,6 @@ export default function App() {
         </main>
       </div>
 
-      {/* backdrop per il drawer mobile */}
       {drawerOpen && <div className="backdrop" onClick={() => setDrawerOpen(false)} />}
     </div>
   );
