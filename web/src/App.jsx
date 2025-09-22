@@ -359,8 +359,8 @@ const startLockedBecauseOfFlag = useMemo(() => {
 
       <header className="brand">
         <div className="logo">⚡</div>
-        <h1>TCG ARC - Event Prima Edizione</h1>
-        <div className="sub">Ottieni la possibilità di acquistare il charizard ad 1 € — 15 domande • 1 solo vincitore</div>
+        <h1>TCG ARC - 1° Ed.</h1>
+        <div className="sub">Charizard ad 1 € — 15 domande • 1 solo vincitore</div>
         <button className="lb-toggle" onClick={() => setDrawerOpen(true)} aria-label="Apri classifica">🏆</button>
       </header>
 
