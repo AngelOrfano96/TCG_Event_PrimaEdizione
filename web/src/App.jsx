@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import "./index.css";
 import { supabase, envOk } from "./lib/supabaseClient";
 
 const PAGE_SIZE = 10;
+const refreshing = useRef(false);
+const scheduleLBRefreshRef = useRef(() => {});
 
 export default function App() {
   if (!envOk) {
@@ -13,7 +15,16 @@ export default function App() {
       </div>
     );
   }
-
+const scheduleLBRefresh = useCallback(() => {
+  if (refreshing.current) return;
+  refreshing.current = true;
+  setTimeout(async () => {
+    await fetchLeaderboard(page);
+    if (runId) fetchMyRank(runId);
+    if (searchQ) doSearch();
+    refreshing.current = false;
+  }, 1000); // max 1 refresh/s
+}, [page, runId, searchQ]);
   // ===== Stato utente/run =====
   const [username, setUsername] = useState("");
   const [needCode, setNeedCode] = useState(false);
@@ -175,27 +186,26 @@ useEffect(() => {
 }, []); // <-- IMPORTANTISSIMO: dipendenze vuote
 
   // ===== Realtime: leaderboard + winners + flags =====
-  useEffect(() => {
-    fetchFlags();
-    fetchLeaderboard(0);
-    const channel = supabase
-      .channel("lb+flags")
-      .on("postgres_changes", { event: "*", schema: "quiz", table: "quiz_runs" }, () => {
-        fetchLeaderboard(page);
-        if (runId) fetchMyRank(runId);
-        if (searchQ) doSearch();
-      })
-      .on("postgres_changes", { event: "*", schema: "quiz", table: "winners" }, () => {
-        fetchLeaderboard(page);
-        if (searchQ) doSearch();
-      })
-      .on("postgres_changes", { event: "*", schema: "quiz", table: "runtime_flags" }, () => {
-        fetchFlags();
-      })
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, runId, searchQ]);
+useEffect(() => {
+  fetchFlags();
+  fetchLeaderboard(0);
+
+  const channel = supabase
+    .channel("lb+flags")
+    .on("postgres_changes", { event: "*", schema: "quiz", table: "quiz_runs" }, () => {
+      scheduleLBRefreshRef.current();   // 👈 invece di fetchLeaderboard(...)
+    })
+    .on("postgres_changes", { event: "*", schema: "quiz", table: "winners" }, () => {
+      scheduleLBRefreshRef.current();   // 👈
+    })
+    .on("postgres_changes", { event: "*", schema: "quiz", table: "runtime_flags" }, () => {
+      fetchFlags();                     // i flag li puoi aggiornare subito
+    })
+    .subscribe();
+
+  return () => supabase.removeChannel(channel);
+  // 👇 IMPORTANTISSIMO: non mettere dipendenze qui, altrimenti ti riscrivi il canale a ogni cambio pagina
+}, []); // <--- deps vuote
 
   // ===== START / RESUME =====
 const startLockedBecauseOfFlag = useMemo(() => {
@@ -329,7 +339,19 @@ const startLockedBecauseOfFlag = useMemo(() => {
     const hasWrong = questions.some((q) => !q.locked);
     if (!hasWrong) alert("Non ci sono domande da ritentare.");
   }
-
+useEffect(() => {
+  let refreshing = false;
+  scheduleLBRefreshRef.current = () => {
+    if (refreshing) return;
+    refreshing = true;
+    setTimeout(async () => {
+      await fetchLeaderboard(page);
+      if (runId) await fetchMyRank(runId);
+      if (searchQ) await doSearch();
+      refreshing = false;
+    }, 1000); // ⏱️ max 1 refresh al secondo
+  };
+}, [page, runId, searchQ]);
   // Prefill
   useEffect(() => {
     const savedUser = localStorage.getItem("pq_username");
