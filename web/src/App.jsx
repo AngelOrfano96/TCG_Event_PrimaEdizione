@@ -127,6 +127,33 @@ export default function App() {
     setHighlightRunId(runId);
     setTimeout(() => setHighlightRunId(null), 2000);
   }
+// ===== Realtime solo per FLAGS (stabile) =====
+useEffect(() => {
+  // lettura immediata all’avvio
+  fetchFlags();
+
+  const flagsChannel = supabase
+    .channel('flags-channel')
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'quiz', table: 'runtime_flags', filter: 'id=eq.1' },
+      () => fetchFlags()
+    )
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'quiz', table: 'runtime_flags', filter: 'id=eq.1' },
+      () => fetchFlags()
+    )
+    .subscribe();
+
+  // Fallback: se i WS sono filtrati, riallinea ogni 10s
+  const poll = setInterval(fetchFlags, 10000);
+
+  return () => {
+    clearInterval(poll);
+    supabase.removeChannel(flagsChannel);
+  };
+}, []); // <-- IMPORTANTISSIMO: dipendenze vuote
 
   // ===== Realtime: leaderboard + winners + flags =====
   useEffect(() => {
@@ -152,12 +179,26 @@ export default function App() {
   }, [page, runId, searchQ]);
 
   // ===== START / RESUME =====
-  const startLockedBecauseOfFlag = useMemo(() => {
-    // Bloccato se flag false o se c'è una start_at futura
-    if (!isStartEnabled) return true;
-    if (startAt && Date.now() < startAt) return true;
-    return false;
-  }, [isStartEnabled, startAt]);
+const startLockedBecauseOfFlag = useMemo(() => {
+  if (!isStartEnabled) return true;
+  if (startAt && Date.now() < startAt) return true;
+  return false;
+}, [isStartEnabled, startAt]);
+
+<button
+  onClick={handleStart}
+  disabled={loading || startLockedBecauseOfFlag}
+  title={
+    startLockedBecauseOfFlag
+      ? (startAt && Date.now() < startAt
+          ? `Apertura tra ${startCountdown || ""}`
+          : "La gara non è ancora aperta")
+      : ""
+  }
+>
+  {needCode ? "Riprendi" : "Start"}
+</button>
+
 
   async function handleStart() {
     const u = username.trim();
