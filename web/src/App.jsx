@@ -156,14 +156,16 @@ async function fetchMyRank(id) {
   if (!error && typeof data === "number") setRank(data);
 }
 
-  async function doSearch() {
-    const q = searchQ.trim();
-    if (!q) return setSearchResults([]);
-    setSearchLoading(true);
-    const { data } = await supabase.rpc("search_ranks", { p_query: q, p_limit: 20, p_offset: 0 });
-    setSearchLoading(false);
-    setSearchResults(Array.isArray(data) ? data : []);
-  }
+async function doSearch() {
+  const q = searchQ.trim();
+  if (!q) return setSearchResults([]);
+  setSearchLoading(true);
+  const fn = lbMode === "sim" ? "search_sim_ranks" : "search_ranks";
+  const { data } = await supabase.rpc(fn, { p_query: q, p_limit: 20, p_offset: 0 });
+  setSearchLoading(false);
+  setSearchResults(Array.isArray(data) ? data : []);
+}
+
   function jumpToRank(rank, runId) {
     const targetPage = Math.floor((rank - 1) / PAGE_SIZE);
     setPage(targetPage);
