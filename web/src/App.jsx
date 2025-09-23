@@ -34,6 +34,18 @@ const [lbMode, setLbMode] = useState("main"); // quale classifica stai guardando
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsRows, setDetailsRows] = useState([]);
   const scheduleLBRefreshRef = useRef(() => {});
+  const [page, setPage] = useState(0);
+
+  const startCountdown = useMemo(() => {
+  if (!startAt) return null;
+  const diff = startAt - now;
+  if (diff <= 0) return "00:00";
+  const s = Math.ceil(diff / 1000);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+}, [startAt, now]);
+
 
  async function openDetails(runId, user) {
   setDetailsUser(user);
@@ -122,10 +134,15 @@ const simCountdown = useMemo(() => {
 
 
   // ===== Leaderboard (live + paginazione + ricerca) =====
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [page, setPage] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+const [lbMain, setLbMain] = useState([]);
+const [lbMainTotal, setLbMainTotal] = useState(0);
+const [lbSim, setLbSim] = useState([]);
+const [lbSimTotal, setLbSimTotal] = useState(0);
+
+// derivati per la tab visibile
+const currentLB = lbMode === "sim" ? lbSim : lbMain;
+const currentTotal = lbMode === "sim" ? lbSimTotal : lbMainTotal;
+const totalPages = Math.max(1, Math.ceil(currentTotal / PAGE_SIZE));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [winnerName, setWinnerName] = useState(null);
   const [highlightRunId, setHighlightRunId] = useState(null);
@@ -139,14 +156,17 @@ async function fetchLeaderboard(which = lbMode, p = page) {
   const { data } = await supabase.rpc(fn, { p_limit: PAGE_SIZE, p_offset: p * PAGE_SIZE });
   const rows = Array.isArray(data) ? data : [];
 
-  // aggiorna lo stato solo se la tab aperta è quella giusta
-  if (which === lbMode) {
-    setLeaderboard(rows);
-    setTotalCount(rows.length ? Number(rows[0].total_count) : 0);
-    const topWinner = which === "main" ? rows.find((r) => r.is_winner) : null;
+  if (which === "sim") {
+    setLbSim(rows);
+    setLbSimTotal(rows.length ? Number(rows[0].total_count) : 0);
+  } else {
+    setLbMain(rows);
+    setLbMainTotal(rows.length ? Number(rows[0].total_count) : 0);
+    const topWinner = rows.find((r) => r.is_winner);
     setWinnerName(topWinner ? topWinner.username : null);
   }
 }
+
 
 
 async function fetchMyRank(id) {
@@ -497,8 +517,9 @@ fetchMyRank(row.run_id);
             <button className="close" onClick={() => setDrawerOpen(false)} aria-label="Chiudi">✕</button>
           </div>
           <div className="card-body">
-<button className={lbMode==='main'?'secondary':''} onClick={() => { setLbMode('main'); fetchLeaderboard('main'); }}>Gara</button>
-<button className={lbMode==='sim'?'secondary':''} onClick={() => { setLbMode('sim'); fetchLeaderboard('sim'); }}>Simulazione</button>
+<button className={lbMode==='main' ? 'secondary' : ''} onClick={() => { setLbMode('main'); setPage(0); fetchLeaderboard('main', 0); }}>Gara</button>
+<button className={lbMode==='sim' ? 'secondary' : ''} onClick={() => { setLbMode('sim'); setPage(0); fetchLeaderboard('sim', 0); }}>Simulazione</button>
+
 
             {/* --- Barra di ricerca --- */}
             <form
@@ -543,7 +564,7 @@ fetchMyRank(row.run_id);
 
             {/* Lista leaderboard */}
             <ul className="lb">
-              {leaderboard.map((row, i) => (
+  {currentLB.map((row, i) => (
                 <li
                   key={row.run_id}
                   className={`${row.is_winner ? "winner" : ""} ${highlightRunId === row.run_id ? "hl" : ""}`}
