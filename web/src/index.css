@@ -150,11 +150,24 @@ body{
 /* Controls */
 .controls{ display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
 label{ display:flex; flex-direction:column; gap:6px; font-size:14px; }
-input[type="text"]{
+/* stesso stile per text, email, password, datetime-local */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="datetime-local"]{
   background:#0b1230; color:var(--text);
   border:1px solid var(--border); padding:10px 12px; border-radius:10px;
   min-width:240px;
 }
+
+/* (opzionale) placeholder e autofill coerenti */
+::placeholder{ color: var(--muted); }
+input:-webkit-autofill{
+  -webkit-box-shadow: 0 0 0 1000px #0b1230 inset !important;
+  -webkit-text-fill-color: var(--text) !important;
+  caret-color: var(--text);
+}
+
 button{
   background:linear-gradient(135deg, var(--accent), var(--accent-2));
   color:#08121f; border:none; padding:10px 14px; border-radius:10px;
