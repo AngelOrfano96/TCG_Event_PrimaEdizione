@@ -16,6 +16,7 @@ export default function App() {
 
   // ===== Stato utente/run =====
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [needCode, setNeedCode] = useState(false);
   const [secretCode, setSecretCode] = useState("");
 
@@ -281,6 +282,14 @@ useEffect(() => {
   async function handleStart() {
     const u = username.trim();
     if (!u) return alert("Inserisci il tuo username TikTok");
+    const em = email.trim().toLowerCase();
+const isResuming = needCode && secretCode.trim() !== "";
+if (!isResuming) {
+  // email richiesta SOLO per nuova run
+  if (!em || !em.includes("@") || em.length < 6) {
+    return alert("Inserisci una email valida.");
+  }
+}
     if (startLockedBecauseOfFlag) {
       const msg =
         startAt && Date.now() < startAt
@@ -289,12 +298,14 @@ useEffect(() => {
       alert(msg);
       return;
     }
+    
     setLoading(true);
     try {
       const payloadCode = needCode ? secretCode.trim() || null : secretCode || null;
       const { data, error } = await supabase.rpc("start_run", {
         p_username: u,
         p_reclaim_code: payloadCode,
+        p_email: em || null
       });
       if (error) {
         const msg = String(error.message || "");
@@ -328,6 +339,8 @@ useEffect(() => {
       localStorage.setItem("pq_username", u);
       localStorage.setItem("pq_run_id", row.run_id);
       localStorage.setItem("pq_secret", row.secret_code);
+      localStorage.setItem("pq_email", em || "");
+
 
       // aggiornamenti iniziali
      scheduleLBRefreshRef.current('main');
@@ -474,8 +487,10 @@ fetchMyRank(row.run_id);
   useEffect(() => {
     const savedUser = localStorage.getItem("pq_username");
     const savedSecret = localStorage.getItem("pq_secret");
+    const savedEmail = localStorage.getItem("pq_email");
     if (savedUser) setUsername(savedUser);
     if (savedSecret) setSecretCode(savedSecret);
+    if (savedEmail) setEmail(savedEmail);
   }, []);
 
   return (
@@ -684,6 +699,17 @@ fetchMyRank(row.run_id);
                   disabled={loading || !!runId}
                 />
               </label>
+<label>
+  Email (obbligatoria per nuova gara):
+  <input
+    type="email"
+    placeholder="nome@esempio.com"
+    value={email}
+    onChange={(e) => setEmail(e.target.value)}
+    disabled={loading || !!runId}
+    required
+  />
+</label>
 
               {needCode && (
                 <label>
