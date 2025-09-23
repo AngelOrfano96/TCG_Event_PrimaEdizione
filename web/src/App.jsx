@@ -465,10 +465,7 @@ async function handleStartSim() {
         <h1>TCG ARC - 1° Ed.</h1>
         <div className="sub">Charizard ad 1 € — 15 domande • 1 solo vincitore</div>
         <button className="lb-toggle" onClick={() => setDrawerOpen(true)} aria-label="Apri classifica">🏆</button>
-        <div className="tabs" style={{display:'flex', gap:8, margin:'6px 0 10px'}}>
-  <button className={lbMode==='main'?'secondary':''} onClick={()=>{setLbMode('main'); scheduleLBRefreshRef.current();}}>Gara</button>
-  <button className={lbMode==='sim' ?'secondary':''} onClick={()=>{setLbMode('sim'); scheduleLBRefreshRef.current();}}>Simulazione</button>
-</div>
+        <div className="tabs" style={{display:'flex', gap:8, margin:'6px 0 10px'}}></div>
 
       </header>
 
@@ -477,6 +474,8 @@ async function handleStartSim() {
         <aside className={`card sidebar-drawer ${drawerOpen ? "open" : ""}`}>
           <div className="card-header">
             <h2>Classifica</h2>
+             <button className={lbMode==='main'?'secondary':''} onClick={()=>{setLbMode('main'); scheduleLBRefreshRef.current();}}>Gara</button>
+  <button className={lbMode==='sim' ?'secondary':''} onClick={()=>{setLbMode('sim'); scheduleLBRefreshRef.current();}}>Simulazione</button>
             <button className="close" onClick={() => setDrawerOpen(false)} aria-label="Chiudi">✕</button>
           </div>
           <div className="card-body">
