@@ -427,6 +427,7 @@ async function handleStartSim() {
     const { data, error } = await supabase.rpc("start_sim_run", {
       p_username: u,
       p_reclaim_code: payloadCode,
+      p_email: email,
     });
    if (error) {
   const em = String(error.message || "");
