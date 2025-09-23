@@ -36,17 +36,6 @@ const [lbMode, setLbMode] = useState("main"); // quale classifica stai guardando
   const scheduleLBRefreshRef = useRef(() => {});
   const [page, setPage] = useState(0);
 
-  const startCountdown = useMemo(() => {
-  if (!startAt) return null;
-  const diff = startAt - now;
-  if (diff <= 0) return "00:00";
-  const s = Math.ceil(diff / 1000);
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
-}, [startAt, now]);
-
-
  async function openDetails(runId, user) {
   setDetailsUser(user);
   setDetailsOpen(true);
@@ -167,7 +156,15 @@ async function fetchLeaderboard(which = lbMode, p = page) {
   }
 }
 
-
+  const startCountdown = useMemo(() => {
+  if (!startAt) return null;
+  const diff = startAt - now;
+  if (diff <= 0) return "00:00";
+  const s = Math.ceil(diff / 1000);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+}, [startAt, now]);
 
 async function fetchMyRank(id) {
   if (!id) return;
