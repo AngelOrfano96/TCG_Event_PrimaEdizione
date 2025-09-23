@@ -311,8 +311,8 @@ useEffect(() => {
       localStorage.setItem("pq_secret", row.secret_code);
 
       // aggiornamenti iniziali
-      fetchLeaderboard(page);
-      fetchMyRank(row.run_id);
+     scheduleLBRefreshRef.current('main');
+fetchMyRank(row.run_id);
     } finally {
       setLoading(false);
     }
@@ -369,9 +369,11 @@ async function handleSubmit() {
 
 
       // refresh list/search
-      fetchLeaderboard(page);
-      fetchMyRank(runId);
-      if (searchQ) doSearch();
+// refresh SOLO la leaderboard della modalità corrente
+scheduleLBRefreshRef.current(mode);   // 'main' oppure 'sim'
+fetchMyRank(runId);
+if (searchQ && lbMode === mode) doSearch(); // ricerca solo se stai guardando quella tab
+
     } finally {
       setLoading(false);
     }
@@ -436,8 +438,9 @@ async function handleStartSim() {
     localStorage.setItem("pq_run_id", row.run_id);
     localStorage.setItem("pq_secret", row.secret_code);
 
-    if (lbMode === "sim") fetchLeaderboard(page);
-    fetchMyRank(row.run_id);
+scheduleLBRefreshRef.current('sim');
+fetchMyRank(row.run_id);
+
   } finally {
     setLoading(false);
   }
