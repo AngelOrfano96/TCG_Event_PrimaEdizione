@@ -57,7 +57,7 @@ const [lbMode, setLbMode] = useState("main"); // quale classifica stai guardando
   const [isSimEnabled, setIsSimEnabled] = useState(false);
   const [simStartAt, setSimStartAt] = useState(null);
   const [simBanner, setSimBanner] = useState(null);
-
+const refreshingRef = useRef({ main: false, sim: false });
 
 
  async function fetchFlags() {
@@ -134,16 +134,20 @@ const simCountdown = useMemo(() => {
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
-async function fetchLeaderboard(p = page) {
-  const fn = lbMode === "sim" ? "get_sim_leaderboard" : "get_leaderboard";
+async function fetchLeaderboard(which = lbMode, p = page) {
+  const fn = which === "sim" ? "get_sim_leaderboard" : "get_leaderboard";
   const { data } = await supabase.rpc(fn, { p_limit: PAGE_SIZE, p_offset: p * PAGE_SIZE });
   const rows = Array.isArray(data) ? data : [];
-  setLeaderboard(rows);
-  setTotalCount(rows.length ? Number(rows[0].total_count) : 0);
-  // banner vincitore solo per la gara
-  const topWinner = lbMode === "main" ? rows.find((r) => r.is_winner) : null;
-  setWinnerName(topWinner ? topWinner.username : null);
+
+  // aggiorna lo stato solo se la tab aperta è quella giusta
+  if (which === lbMode) {
+    setLeaderboard(rows);
+    setTotalCount(rows.length ? Number(rows[0].total_count) : 0);
+    const topWinner = which === "main" ? rows.find((r) => r.is_winner) : null;
+    setWinnerName(topWinner ? topWinner.username : null);
+  }
 }
+
 
 async function fetchMyRank(id) {
   if (!id) return;
@@ -168,14 +172,16 @@ async function fetchMyRank(id) {
     setTimeout(() => setHighlightRunId(null), 2000);
   }
 useEffect(() => {
+  // opzionale: carica la sim solo quando apri la tab; se vuoi caricarla subito, chiama fetchLeaderboard("sim")
   const channel = supabase
     .channel("lb-sim")
     .on("postgres_changes", { event: "*", schema: "quiz", table: "sim_runs" }, () => {
-      scheduleLBRefreshRef.current();
+      scheduleLBRefreshRef.current("sim");
     })
     .subscribe();
   return () => supabase.removeChannel(channel);
 }, []);
+
 const simStartLocked = useMemo(() => {
   if (!isSimEnabled) return true;
   if (simStartAt && Date.now() < simStartAt) return true;
@@ -184,20 +190,22 @@ const simStartLocked = useMemo(() => {
 
 
   // ===== Throttle per la leaderboard (1 refresh/sec) =====
-
 useEffect(() => {
-  let refreshing = false;
-  scheduleLBRefreshRef.current = () => {
-    if (refreshing) return;
-    refreshing = true;
+  scheduleLBRefreshRef.current = (which) => {
+    const key = which === "sim" ? "sim" : "main";
+    if (refreshingRef.current[key]) return;
+    refreshingRef.current[key] = true;
+
     setTimeout(async () => {
-      await fetchLeaderboard(page);      // userà lbMode internamente
-      if (runId) await fetchMyRank(runId);
-      if (searchQ) await doSearch();
-      refreshing = false;
-    }, 1000);
+      await fetchLeaderboard(which);               // ricarica SOLO quella tab
+      if (which === mode && runId) await fetchMyRank(runId); // rank solo se riguarda la run corrente
+      if (which === lbMode && searchQ) await doSearch();     // ricerca solo se stai guardando quella tab
+      refreshingRef.current[key] = false;
+    }, 1000); // max 1/s per tab
   };
-}, [page, runId, searchQ, lbMode]); // 
+  // dipendenze: usiamo le ultime versioni di questi valori
+}, [lbMode, mode, runId, searchQ, page]);
+
 
   // ===== Realtime solo per FLAGS (stabile) =====
   useEffect(() => {
@@ -227,21 +235,22 @@ useEffect(() => {
   }, []); // deps vuote
 
   // ===== Realtime: leaderboard + winners =====
-  useEffect(() => {
-    fetchLeaderboard(0); // prima pagina a freddo
+useEffect(() => {
+  fetchLeaderboard("main"); // prima pagina a freddo (gara)
 
-    const channel = supabase
-      .channel("lb")
-      .on("postgres_changes", { event: "*", schema: "quiz", table: "quiz_runs" }, () => {
-        scheduleLBRefreshRef.current();
-      })
-      .on("postgres_changes", { event: "*", schema: "quiz", table: "winners" }, () => {
-        scheduleLBRefreshRef.current();
-      })
-      .subscribe();
+  const channel = supabase
+    .channel("lb-main")
+    .on("postgres_changes", { event: "*", schema: "quiz", table: "quiz_runs" }, () => {
+      scheduleLBRefreshRef.current("main");
+    })
+    .on("postgres_changes", { event: "*", schema: "quiz", table: "winners" }, () => {
+      scheduleLBRefreshRef.current("main");
+    })
+    .subscribe();
 
-    return () => supabase.removeChannel(channel);
-  }, []); // deps vuote (importantissimo)
+  return () => supabase.removeChannel(channel);
+}, []); // deps vuote
+
 
   // ===== START / RESUME =====
   const startLockedBecauseOfFlag = useMemo(() => {
@@ -385,20 +394,26 @@ async function handleStartSim() {
       p_username: u,
       p_reclaim_code: payloadCode,
     });
-    if (error) {
-      const msg =
-  simStartAt && Date.now() < simStartAt
-    ? `La simulazione non è ancora aperta. Apertura tra ${simCountdown || ""}.`
-    : "La simulazione è disabilitata.";
-      if (msg.includes("RECLAIM_REQUIRED")) {
-        setNeedCode(true);
-        alert("Hai già una simulazione attiva per questo username. Inserisci il codice per riprenderla.");
-        return;
-      }
-      console.error(error);
-      alert("Errore nell'avvio simulazione.");
-      return;
-    }
+   if (error) {
+  const em = String(error.message || "");
+  if (em.includes("RECLAIM_REQUIRED")) {
+    setNeedCode(true);
+    alert("Hai già una simulazione attiva per questo username. Inserisci il codice per riprenderla.");
+    return;
+  }
+  if (em.includes("SIM_NOT_YET_OPEN")) {
+    alert(`La simulazione non è ancora aperta. Apertura tra ${simCountdown || ""}.`);
+    return;
+  }
+  if (em.includes("SIM_DISABLED")) {
+    alert("La simulazione è disabilitata.");
+    return;
+  }
+  console.error(error);
+  alert("Errore nell'avvio simulazione.");
+  return;
+}
+
     const row = Array.isArray(data) ? data[0] : data;
     const q = (row?.questions || []).map((it) => ({
       id: it.question_id,
@@ -474,11 +489,11 @@ async function handleStartSim() {
         <aside className={`card sidebar-drawer ${drawerOpen ? "open" : ""}`}>
           <div className="card-header">
             <h2>Classifica</h2>
-             <button className={lbMode==='main'?'secondary':''} onClick={()=>{setLbMode('main'); scheduleLBRefreshRef.current();}}>Gara</button>
-  <button className={lbMode==='sim' ?'secondary':''} onClick={()=>{setLbMode('sim'); scheduleLBRefreshRef.current();}}>Simulazione</button>
             <button className="close" onClick={() => setDrawerOpen(false)} aria-label="Chiudi">✕</button>
           </div>
           <div className="card-body">
+<button className={lbMode==='main'?'secondary':''} onClick={() => { setLbMode('main'); fetchLeaderboard('main'); }}>Gara</button>
+<button className={lbMode==='sim'?'secondary':''} onClick={() => { setLbMode('sim'); fetchLeaderboard('sim'); }}>Simulazione</button>
 
             {/* --- Barra di ricerca --- */}
             <form
@@ -662,31 +677,33 @@ async function handleStartSim() {
 
              {!runId ? (
   <>
-    <button
-      onClick={handleStart}
-      disabled={loading || startLockedBecauseOfFlag}
-      title={
-  simStartLocked
-    ? (simStartAt && Date.now() < simStartAt ? `Simulazione tra ${simCountdown || ""}` : "Simulazione disabilitata")
-    : ""
-}
-    >
-      {needCode ? "Riprendi" : "Start"}
-    </button>
+<button
+  onClick={handleStart}
+  disabled={loading || startLockedBecauseOfFlag}
+  title={
+    startLockedBecauseOfFlag
+      ? (startAt && Date.now() < startAt ? `Apertura tra ${startCountdown || ""}` : "La gara non è ancora aperta")
+      : ""
+  }
+>
+  {needCode ? "Riprendi" : "Start"}
+</button>
 
-    <button
-      className="secondary"
-      onClick={handleStartSim}
-      disabled={loading || simStartLocked}
-      title={
-        simStartLocked
-          ? (simStartAt && Date.now() < simStartAt ? `Simulazione tra ${startCountdown || ""}` : "Simulazione disabilitata")
-          : ""
-      }
-      style={{ marginLeft: 8 }}
-    >
-      Avvia Simulazione
-    </button>
+
+<button
+  className="secondary"
+  onClick={handleStartSim}
+  disabled={loading || simStartLocked}
+  title={
+    simStartLocked
+      ? (simStartAt && Date.now() < simStartAt ? `Simulazione tra ${simCountdown || ""}` : "Simulazione disabilitata")
+      : ""
+  }
+  style={{ marginLeft: 8 }}
+>
+  Avvia Simulazione
+</button>
+
   </>
 ) : (
   <>
