@@ -870,7 +870,8 @@ fetchMyRank(row.run_id);
           <li><strong>Condotta leale:</strong> sono vietati bot, exploit o qualunque forma di cheating; lo staff può squalificare a proprio insindacabile giudizio.</li>
           <li><strong>Validità delle risposte:</strong> le soluzioni sono basate su fonti ufficiali; eventuali contestazioni saranno valutate dallo staff.</li>
           <li><strong>Comunicazioni al vincitore:</strong> il vincitore (e il podio, se previsto) sarà contattato via email/DM. Se non risponde entro 72 ore, il premio può decadere o passare al successivo in classifica.</li>
-          <li><strong>Premi:</strong> eventuali spedizioni/costi saranno concordati in privato. Lo staff può richiedere verifica d’identità per evitare abusi.</li>
+          <li><strong>Premi:</strong> eventuali spedizioni/costi saranno concordati in privato, lo staff offre spedizione gratis. Lo staff può richiedere verifica d’identità per evitare abusi.</li>
+          <li><strong>Disclaimer:</strong> Questa non è una lotteria, tantomeno un giveaway, aggiudicandoti il primo posto ti otterrai il diritto di poter acquistare il premio per la somma di € 1,00.</li>
           <li><strong>Limitazioni tecniche:</strong> eventuali rallentamenti o disservizi della piattaforma non danno diritto a rimborsi; se necessario, la gara può essere annullata/riavviata.</li>
           <li><strong>Privacy:</strong> l’uso dell’email è limitato a contatto per esito gara e comunicazioni correlate (vedi “Privacy”).</li>
           <li><strong>Accettazione:</strong> l’avvio della partita implica l’accettazione integrale del presente regolamento.</li>
@@ -891,12 +892,12 @@ fetchMyRank(row.run_id);
         <button className="close" onClick={() => setShowPrivacy(false)} aria-label="Chiudi">✕</button>
       </div>
       <div className="modal-body" style={{lineHeight:1.5}}>
-        <p><strong>Titolare del trattamento:</strong> [TUO NOME/AZIENDA], contatto: [TUA EMAIL].</p>
+        <p><strong>Titolare del trattamento:</strong> TCG ARC, contatto: AngelOrfan96@gmail.com.</p>
         <p><strong>Dati trattati:</strong> username (necessario per la classifica), email (solo per contattare i vincitori/podio o comunicazioni sulla gara), log tecnici (timestamp, punteggio, tempo impiegato).</p>
         <p><strong>Finalità e basi giuridiche:</strong> esecuzione del servizio/gioco (art. 6.1.b), interesse legittimo a sicurezza/anti-frode (art. 6.1.f), e <em>consenso</em> per l’uso dell’email a contatto vincitori (art. 6.1.a).</p>
         <p><strong>Conservazione:</strong> i dati del torneo corrente sono conservati per il tempo necessario all’assegnazione dei premi e per obblighi legali; le email non saranno usate per marketing senza consenso separato.</p>
         <p><strong>Destinatari e hosting:</strong> il servizio usa Supabase come fornitore di infrastruttura (responsabile del trattamento). I dati sono ospitati su loro infrastruttura; verifica e seleziona un datacenter UE quando possibile.</p>
-        <p><strong>Diritti degli interessati:</strong> accesso, rettifica, cancellazione, limitazione, portabilità, opposizione. Puoi richiederli contattando [TUA EMAIL].</p>
+        <p><strong>Diritti degli interessati:</strong> accesso, rettifica, cancellazione, limitazione, portabilità, opposizione. Puoi richiederli contattando AngelOrfan96@gmail.com.</p>
         <p><strong>Cookie/Tracking:</strong> l’app usa solo storage tecnico necessario (es. localStorage per sessione). Nessun tracciamento pubblicitario.</p>
         <p><strong>Minori:</strong> se partecipi, dichiari di avere l’età minima prevista nel tuo Paese o di avere il consenso dei genitori/tutori.</p>
         <p><strong>Versione informativa:</strong> {PRIVACY_VERSION}</p>
