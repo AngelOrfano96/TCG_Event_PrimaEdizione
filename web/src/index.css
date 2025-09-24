@@ -348,3 +348,72 @@ button:disabled{ opacity:.6; cursor:not-allowed; }
     justify-content: flex-start; /* allinea a sinistra */
   }
 }
+
+
+
+
+
+
+
+/* === Charizard theme — overrides ONLY colors === */
+
+/* Palette principale */
+:root{
+  /* fondo scurissimo “vulcano/notte” */
+  --bg: #0D0A12;
+
+  /* pannelli fumosi */
+  --panel: #15121E;
+  --panel-2:#100D18;
+
+  /* testi caldi color crema */
+  --text:#FFEFE2;
+  --muted:#C8B6A6;
+
+  /* accenti: arancione braci + oro/ambra */
+  --accent:#FF7A00;      /* Charizard orange */
+  --accent-2:#FFC861;    /* ember gold */
+
+  /* esiti: turchese “ali” per OK, rosso lava per KO */
+  --ok:#23B4C9;          /* turquoise wings */
+  --danger:#E5453A;      /* lava red */
+
+  /* bordo leggermente bruciato */
+  --border:#2A1F1B;
+
+  --shadow: 0 8px 30px rgba(0,0,0,.35);
+}
+
+/* Fondo scena: bagliori arancioni + riflessi freddi */
+body{
+  background:
+    radial-gradient(1200px 500px at 10% -10%, #3a1a0b 0%, transparent 60%),
+    radial-gradient(1200px 500px at 110% 10%, #0b2c34 0%, transparent 60%),
+    var(--bg);
+  color:var(--text);
+}
+
+/* Banner vincitore: turchese→arancio */
+.winner-banner{
+  background: linear-gradient(90deg, rgba(35,180,201,.15), rgba(255,122,0,.15));
+  border:1px solid rgba(35,180,201,.55);
+}
+
+/* Logo: arancione→turchese */
+.brand .logo{
+  background: linear-gradient(135deg, #FF7A00, #23B4C9);
+}
+
+/* Pulsanti/slider ecc. restano guidati dagli accenti della palette;
+   allineiamo il colore dei radio button agli OK turchesi */
+.opt input{ accent-color: var(--ok); }
+
+/* (opzionale) badge “Vincitore” con fondo turchese scuro */
+.lb .badge{
+  background:#0a2b31; color:var(--ok);
+}
+
+/* (opzionale) timer con fondo braci */
+.timer{
+  background:#1c120c; border-color: var(--border);
+}
