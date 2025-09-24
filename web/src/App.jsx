@@ -548,7 +548,7 @@ fetchMyRank(row.run_id);
     <div className="icons">
       {/* metti i tuoi link veri ai social */}
       <a href="https://tiktok.com/@tcg_arc" target="_blank" rel="noreferrer" aria-label="TikTok" className="icon tiktok">𝄞</a>
-      <a href="https://youtube.com/@tuo" target="_blank" rel="noreferrer" aria-label="YouTube" className="icon yt">▶</a>
+      <a href="https://youtube.com/@TCGARC" target="_blank" rel="noreferrer" aria-label="YouTube" className="icon yt">▶</a>
     </div>
   </div>
 
