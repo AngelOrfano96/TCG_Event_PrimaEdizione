@@ -544,7 +544,7 @@ fetchMyRank(row.run_id);
 {/* Requisiti + link social + pulsanti info */}
 <div className="top-rail">
   <div className="top-left">
-    <span className="label">Per poter partecipare: seguimi sui miei social:</span>
+    <span className="label">Seguimi sui miei social!:</span>
     <div className="icons">
       {/* metti i tuoi link veri ai social */}
       <a href="https://tiktok.com/@tcg_arc" target="_blank" rel="noreferrer" aria-label="TikTok" className="icon tiktok">𝄞</a>
