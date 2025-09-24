@@ -272,3 +272,26 @@ button:disabled{ opacity:.6; cursor:not-allowed; }
 .modal .close{
   background:#18224d; color:#fff; border:1px solid var(--border); padding:6px 10px; border-radius:8px; cursor:pointer;
 }
+
+
+
+
+
+
+
+
+.requirements{
+  margin: -6px 0 12px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:10px 12px;
+  background:rgba(255,255,255,.03);
+  border:1px solid var(--border);
+  border-radius:12px;
+}
+.req-left{ display:flex; align-items:center; gap:8px; color:var(--text); font-size:14px; }
+.soc{
+  display:inline-grid; place-items:center;
+  width:28px; height:28px; border-radius:8px;
+  background:#0b1638; border:1px solid var(--border); color:#fff;
+}
+.req-right{ display:flex; gap:8px; }

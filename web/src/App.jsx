@@ -36,7 +36,15 @@ const [lbMode, setLbMode] = useState("main"); // quale classifica stai guardando
   const [detailsRows, setDetailsRows] = useState([]);
   const scheduleLBRefreshRef = useRef(() => {});
   const [page, setPage] = useState(0);
+// modali info
+const [showRules, setShowRules] = useState(false);
+const [showPrivacy, setShowPrivacy] = useState(false);
 
+// consenso GDPR (gating dei bottoni Start)
+const [consentAccepted, setConsentAccepted] = useState(false);
+
+// versione del testo privacy/regolamento (se cambi i testi, incrementa)
+const PRIVACY_VERSION = "v1.0";
  async function openDetails(runId, user) {
   setDetailsUser(user);
   setDetailsOpen(true);
@@ -341,6 +349,12 @@ if (!isResuming) {
       localStorage.setItem("pq_secret", row.secret_code);
       localStorage.setItem("pq_email", em || "");
 
+      // 👇 REGISTRA il consenso per questa run (usa la tua costante PRIVACY_VERSION)
+await supabase.rpc("record_consent", {
+  p_run_id: row.run_id,
+  p_version: PRIVACY_VERSION,
+});
+
 
       // aggiornamenti iniziali
      scheduleLBRefreshRef.current('main');
@@ -471,6 +485,12 @@ async function handleStartSim() {
     localStorage.setItem("pq_run_id", row.run_id);
     localStorage.setItem("pq_secret", row.secret_code);
 
+    // 👇 REGISTRA il consenso per la SIM
+await supabase.rpc("record_consent_sim", {
+  p_run_id: row.run_id,
+  p_version: PRIVACY_VERSION,
+});
+
 scheduleLBRefreshRef.current('sim');
 fetchMyRank(row.run_id);
 
@@ -521,6 +541,24 @@ fetchMyRank(row.run_id);
         <div className="tabs" style={{display:'flex', gap:8, margin:'6px 0 10px'}}></div>
 
       </header>
+{/* Requisiti + link social + pulsanti info */}
+<div className="requirements">
+  <div className="req-left">
+    <strong>Requisiti:</strong>&nbsp; Seguirmi sui miei social:
+    <a href="https://www.tiktok.com/@tcg_arc" target="_blank" rel="noreferrer" aria-label="TikTok" className="soc">
+      {/* TikTok SVG */}
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M21 8.5a6.5 6.5 0 01-5-2.4v7.2a6.3 6.3 0 11-5.4-6.2v3.3a3 3 0 103 3V2h2.3a6.5 6.5 0 005.1 2.4V8.5z"/></svg>
+    </a>
+    <a href="https://www.youtube.com/@TUO_HANDLE" target="_blank" rel="noreferrer" aria-label="YouTube" className="soc">
+      {/* YouTube SVG */}
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M23.5 6.2a3 3 0 00-2.1-2.1C19.6 3.5 12 3.5 12 3.5s-7.6 0-9.4.6A3 3 0 00.5 6.2 31 31 0 000 12a31 31 0 00.5 5.8 3 3 0 002.1 2.1c1.8.6 9.4.6 9.4.6s7.6 0 9.4-.6a3 3 0 002.1-2.1A31 31 0 0024 12a31 31 0 00-.5-5.8zM9.8 15.6V8.4L15.9 12l-6.1 3.6z"/></svg>
+    </a>
+  </div>
+  <div className="req-right">
+    <button className="secondary" onClick={() => setShowRules(true)}>Regolamento</button>
+    <button className="secondary" onClick={() => setShowPrivacy(true)}>Privacy</button>
+  </div>
+</div>
 
       <div className="grid">
         {/* ===== Sidebar / Drawer ===== */}
@@ -729,7 +767,7 @@ fetchMyRank(row.run_id);
   <>
 <button
   onClick={handleStart}
-  disabled={loading || startLockedBecauseOfFlag}
+  disabled={loading || startLockedBecauseOfFlag || !consentAccepted}
   title={
     startLockedBecauseOfFlag
       ? (startAt && Date.now() < startAt ? `Apertura tra ${startCountdown || ""}` : "La gara non è ancora aperta")
@@ -743,7 +781,7 @@ fetchMyRank(row.run_id);
 <button
   className="secondary"
   onClick={handleStartSim}
-  disabled={loading || simStartLocked}
+  disabled={loading || simStartLocked || !consentAccepted}
   title={
     simStartLocked
       ? (simStartAt && Date.now() < simStartAt ? `Simulazione tra ${simCountdown || ""}` : "Simulazione disabilitata")
@@ -765,6 +803,19 @@ fetchMyRank(row.run_id);
 )}
 
             </div>
+
+            <label style={{maxWidth: 520}}>
+  <span>
+    <input
+      type="checkbox"
+      checked={consentAccepted}
+      onChange={(e) => setConsentAccepted(e.target.checked)}
+      style={{ marginRight: 8 }}
+    />
+    Dichiaro di aver letto e accettato il <button type="button" className="linkish" onClick={() => setShowRules(true)}>Regolamento</button> e l’<button type="button" className="linkish" onClick={() => setShowPrivacy(true)}>Informativa Privacy</button>.
+  </span>
+</label>
+
 
             {/* Progresso */}
            <div className="progress" title={`${correctCount}/${totalQuestions} corrette`}>
@@ -803,6 +854,59 @@ fetchMyRank(row.run_id);
       </div>
 
       {drawerOpen && <div className="backdrop" onClick={() => setDrawerOpen(false)} />}
+        {/* MODALE REGOLAMENTO */}
+{showRules && (
+  <>
+    <div className="modal-backdrop" onClick={() => setShowRules(false)} />
+    <div className="modal">
+      <div className="modal-header">
+        <h3>Regolamento</h3>
+        <button className="close" onClick={() => setShowRules(false)} aria-label="Chiudi">✕</button>
+      </div>
+      <div className="modal-body" style={{lineHeight:1.5}}>
+        <ol style={{paddingLeft:18}}>
+          <li><strong>Requisiti di partecipazione:</strong> seguire i profili indicati nei link in alto.</li>
+          <li><strong>Come si vince:</strong> 15/15 corrette nel minor tempo. In caso di pari punteggio, vince chi ha completato per primo (si usa il millisecondo di arrivo).</li>
+          <li><strong>Una sola partecipazione per persona:</strong> è vietato usare più account/identità.</li>
+          <li><strong>Condotta leale:</strong> sono vietati bot, exploit o qualunque forma di cheating; lo staff può squalificare a proprio insindacabile giudizio.</li>
+          <li><strong>Validità delle risposte:</strong> le soluzioni sono basate su fonti ufficiali; eventuali contestazioni saranno valutate dallo staff.</li>
+          <li><strong>Comunicazioni al vincitore:</strong> il vincitore (e il podio, se previsto) sarà contattato via email/DM. Se non risponde entro 72 ore, il premio può decadere o passare al successivo in classifica.</li>
+          <li><strong>Premi:</strong> eventuali spedizioni/costi saranno concordati in privato. Lo staff può richiedere verifica d’identità per evitare abusi.</li>
+          <li><strong>Limitazioni tecniche:</strong> eventuali rallentamenti o disservizi della piattaforma non danno diritto a rimborsi; se necessario, la gara può essere annullata/riavviata.</li>
+          <li><strong>Privacy:</strong> l’uso dell’email è limitato a contatto per esito gara e comunicazioni correlate (vedi “Privacy”).</li>
+          <li><strong>Accettazione:</strong> l’avvio della partita implica l’accettazione integrale del presente regolamento.</li>
+        </ol>
+      </div>
+    </div>
+  </>
+)}
+
+
+{/* MODALE PRIVACY */}
+{showPrivacy && (
+  <>
+    <div className="modal-backdrop" onClick={() => setShowPrivacy(false)} />
+    <div className="modal">
+      <div className="modal-header">
+        <h3>Informativa Privacy (GDPR)</h3>
+        <button className="close" onClick={() => setShowPrivacy(false)} aria-label="Chiudi">✕</button>
+      </div>
+      <div className="modal-body" style={{lineHeight:1.5}}>
+        <p><strong>Titolare del trattamento:</strong> [TUO NOME/AZIENDA], contatto: [TUA EMAIL].</p>
+        <p><strong>Dati trattati:</strong> username (necessario per la classifica), email (solo per contattare i vincitori/podio o comunicazioni sulla gara), log tecnici (timestamp, punteggio, tempo impiegato).</p>
+        <p><strong>Finalità e basi giuridiche:</strong> esecuzione del servizio/gioco (art. 6.1.b), interesse legittimo a sicurezza/anti-frode (art. 6.1.f), e <em>consenso</em> per l’uso dell’email a contatto vincitori (art. 6.1.a).</p>
+        <p><strong>Conservazione:</strong> i dati del torneo corrente sono conservati per il tempo necessario all’assegnazione dei premi e per obblighi legali; le email non saranno usate per marketing senza consenso separato.</p>
+        <p><strong>Destinatari e hosting:</strong> il servizio usa Supabase come fornitore di infrastruttura (responsabile del trattamento). I dati sono ospitati su loro infrastruttura; verifica e seleziona un datacenter UE quando possibile.</p>
+        <p><strong>Diritti degli interessati:</strong> accesso, rettifica, cancellazione, limitazione, portabilità, opposizione. Puoi richiederli contattando [TUA EMAIL].</p>
+        <p><strong>Cookie/Tracking:</strong> l’app usa solo storage tecnico necessario (es. localStorage per sessione). Nessun tracciamento pubblicitario.</p>
+        <p><strong>Minori:</strong> se partecipi, dichiari di avere l’età minima prevista nel tuo Paese o di avere il consenso dei genitori/tutori.</p>
+        <p><strong>Versione informativa:</strong> {PRIVACY_VERSION}</p>
+      </div>
+    </div>
+  </>
+)}
+
+
     </div>
   );
 }
