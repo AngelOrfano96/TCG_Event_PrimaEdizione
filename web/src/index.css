@@ -417,3 +417,67 @@ body{
 .timer{
   background:#1c120c; border-color: var(--border);
 }
+
+
+
+
+
+
+
+
+
+
+/* === Charizard: rimuovi blu hardcoded (override finale) === */
+:root{
+  /* appoggi cromatici extra */
+  --btn-secondary: #231a17;   /* bottone secondario “braci scure” */
+  --input-bg:     #1a1411;    /* campi input */
+  --qnum-bg:      #1d120d;    /* fondo numerino domanda */
+  --timer-bg:     #1c120c;    /* timer */
+  --progress-bg:  #2a1b12;    /* barra progresso */
+}
+
+/* bottoni secondari (close, toggle, ecc.) */
+.lb-toggle,
+.card .card-header .close,
+.search-results button,
+.modal .close,
+button.secondary{
+  background: var(--btn-secondary) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+/* input e search coerenti */
+.searchbar input,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="datetime-local"]{
+  background: var(--input-bg) !important;
+}
+
+/* numerino domanda + chip + opt senza blu */
+.qnum{
+  background: var(--qnum-bg) !important;
+  border-color: var(--border) !important;
+  color: var(--accent) !important;
+}
+.chip,
+.opt{
+  background: var(--input-bg) !important;
+}
+
+/* timer senza tinta blu */
+.timer{
+  background: var(--timer-bg) !important;
+  border-color: var(--border) !important;
+}
+
+/* barra progresso senza blu */
+.progress{
+  background: var(--progress-bg) !important;
+}
+
+/* radio accent già su var(--ok) (turchese ali) */
+.opt input{ accent-color: var(--ok); }
