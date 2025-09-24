@@ -360,11 +360,11 @@ button:disabled{ opacity:.6; cursor:not-allowed; }
 /* Palette principale */
 :root{
   /* fondo scurissimo “vulcano/notte” */
-  --bg: #0D0A12;
+  --bg: #fffbd7;
 
   /* pannelli fumosi */
-  --panel: #15121E;
-  --panel-2:#100D18;
+  --panel: #dfdaaf;
+  --panel-2:#aca678;
 
   /* testi caldi color crema */
   --text:#FFEFE2;
@@ -375,7 +375,7 @@ button:disabled{ opacity:.6; cursor:not-allowed; }
   --accent-2:#FFC861;    /* ember gold */
 
   /* esiti: turchese “ali” per OK, rosso lava per KO */
-  --ok:#23B4C9;          /* turquoise wings */
+  --ok:#495557;          /* turquoise wings */
   --danger:#E5453A;      /* lava red */
 
   /* bordo leggermente bruciato */
@@ -387,21 +387,21 @@ button:disabled{ opacity:.6; cursor:not-allowed; }
 /* Fondo scena: bagliori arancioni + riflessi freddi */
 body{
   background:
-    radial-gradient(1200px 500px at 10% -10%, #3a1a0b 0%, transparent 60%),
-    radial-gradient(1200px 500px at 110% 10%, #0b2c34 0%, transparent 60%),
+    radial-gradient(1200px 500px at 10% -10%, #251208 0%, transparent 60%),
+    radial-gradient(1200px 500px at 110% 10%, #051114 0%, transparent 60%),
     var(--bg);
   color:var(--text);
 }
 
 /* Banner vincitore: turchese→arancio */
 .winner-banner{
-  background: linear-gradient(90deg, rgba(35,180,201,.15), rgba(255,122,0,.15));
-  border:1px solid rgba(35,180,201,.55);
+  background: linear-gradient(90deg, rgba(201, 70, 9, 0.15), rgba(255,122,0,.15));
+  border:1px solid rgba(202, 123, 19, 0.55);
 }
 
 /* Logo: arancione→turchese */
 .brand .logo{
-  background: linear-gradient(135deg, #FF7A00, #23B4C9);
+  background: linear-gradient(135deg, #FF7A00, #052024);
 }
 
 /* Pulsanti/slider ecc. restano guidati dagli accenti della palette;
@@ -427,57 +427,3 @@ body{
 
 
 
-/* === Charizard: rimuovi blu hardcoded (override finale) === */
-:root{
-  /* appoggi cromatici extra */
-  --btn-secondary: #231a17;   /* bottone secondario “braci scure” */
-  --input-bg:     #1a1411;    /* campi input */
-  --qnum-bg:      #1d120d;    /* fondo numerino domanda */
-  --timer-bg:     #1c120c;    /* timer */
-  --progress-bg:  #2a1b12;    /* barra progresso */
-}
-
-/* bottoni secondari (close, toggle, ecc.) */
-.lb-toggle,
-.card .card-header .close,
-.search-results button,
-.modal .close,
-button.secondary{
-  background: var(--btn-secondary) !important;
-  border-color: var(--border) !important;
-  color: var(--text) !important;
-}
-
-/* input e search coerenti */
-.searchbar input,
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="datetime-local"]{
-  background: var(--input-bg) !important;
-}
-
-/* numerino domanda + chip + opt senza blu */
-.qnum{
-  background: var(--qnum-bg) !important;
-  border-color: var(--border) !important;
-  color: var(--accent) !important;
-}
-.chip,
-.opt{
-  background: var(--input-bg) !important;
-}
-
-/* timer senza tinta blu */
-.timer{
-  background: var(--timer-bg) !important;
-  border-color: var(--border) !important;
-}
-
-/* barra progresso senza blu */
-.progress{
-  background: var(--progress-bg) !important;
-}
-
-/* radio accent già su var(--ok) (turchese ali) */
-.opt input{ accent-color: var(--ok); }
