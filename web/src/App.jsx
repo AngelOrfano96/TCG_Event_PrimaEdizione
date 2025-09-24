@@ -542,23 +542,22 @@ fetchMyRank(row.run_id);
 
       </header>
 {/* Requisiti + link social + pulsanti info */}
-<div className="requirements">
-  <div className="req-left">
-    <strong>Requisiti:</strong>&nbsp; Seguirmi sui miei social:
-    <a href="https://www.tiktok.com/@tcg_arc" target="_blank" rel="noreferrer" aria-label="TikTok" className="soc">
-      {/* TikTok SVG */}
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M21 8.5a6.5 6.5 0 01-5-2.4v7.2a6.3 6.3 0 11-5.4-6.2v3.3a3 3 0 103 3V2h2.3a6.5 6.5 0 005.1 2.4V8.5z"/></svg>
-    </a>
-    <a href="https://www.youtube.com/@TUO_HANDLE" target="_blank" rel="noreferrer" aria-label="YouTube" className="soc">
-      {/* YouTube SVG */}
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M23.5 6.2a3 3 0 00-2.1-2.1C19.6 3.5 12 3.5 12 3.5s-7.6 0-9.4.6A3 3 0 00.5 6.2 31 31 0 000 12a31 31 0 00.5 5.8 3 3 0 002.1 2.1c1.8.6 9.4.6 9.4.6s7.6 0 9.4-.6a3 3 0 002.1-2.1A31 31 0 0024 12a31 31 0 00-.5-5.8zM9.8 15.6V8.4L15.9 12l-6.1 3.6z"/></svg>
-    </a>
+<div className="top-rail">
+  <div className="top-left">
+    <span className="label">Requisiti: seguimi sui miei social:</span>
+    <div className="icons">
+      {/* metti i tuoi link veri ai social */}
+      <a href="https://tiktok.com/@tcg_arc" target="_blank" rel="noreferrer" aria-label="TikTok" className="icon tiktok">𝄞</a>
+      <a href="https://youtube.com/@tuo" target="_blank" rel="noreferrer" aria-label="YouTube" className="icon yt">▶</a>
+    </div>
   </div>
-  <div className="req-right">
-    <button className="secondary" onClick={() => setShowRules(true)}>Regolamento</button>
-    <button className="secondary" onClick={() => setShowPrivacy(true)}>Privacy</button>
+
+  <div className="top-right">
+    <button className="secondary" onClick={() => setRulesOpen(true)}>Regolamento</button>
+    <button className="secondary" onClick={() => setPrivacyOpen(true)}>Privacy</button>
   </div>
 </div>
+
 
       <div className="grid">
         {/* ===== Sidebar / Drawer ===== */}
