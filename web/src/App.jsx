@@ -403,8 +403,18 @@ async function handleSubmit() {
         return alert("Errore nell'invio.");
       }
       const row = Array.isArray(data) ? data[0] : data;
+      const submittedIds = new Set(payload.map(a => a.question_id));
       const wrong = row?.wrong_ids || [];
-      setQuestions((qs) => qs.map((q) => ({ ...q, locked: !wrong.includes(q.id) })));
+      setQuestions(qs =>
+  qs.map(q => {
+    // Se non l'hai inviata in questo giro, non toccarla
+    if (!submittedIds.has(q.id)) return q;
+
+    // Se l'hai inviata e NON è nei wrong_ids => è corretta => lock
+    const isWrong = wrong.includes(q.id);
+    return { ...q, locked: !isWrong };
+  })
+);
       setIsWinner(Boolean(row?.is_winner));
       setRank(row?.rank ?? null);
 
