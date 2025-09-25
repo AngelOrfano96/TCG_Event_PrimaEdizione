@@ -65,12 +65,13 @@ export default function Admin() {
     setSolutions(Array.isArray(data) ? data : []);
   }
 
+  // ✅ NUOVO: Prefill “tutte corrette” (NO chiusura)
   async function markAllCorrectSoft() {
     const u = cheatUser.trim().replace(/^@/, "");
     if (!u) return alert("Inserisci uno username (senza @).");
     if (!confirm(`Impostare 15/15 corrette per @${u} (senza chiudere la run)?`)) return;
     setCheatLoading(true);
-    const { data, error } = await supabase.rpc("admin_mark_all_correct_soft", {
+    const { data, error } = await supabase.rpc("admin_prefill_all_correct", {
       p_admin_secret: adminSecret,
       p_username: u,
     });
@@ -80,8 +81,26 @@ export default function Admin() {
       return alert(error.message || "Errore nell'operazione.");
     }
     const row = Array.isArray(data) ? data[0] : data;
-    alert(`Fatto! Run ${row?.run_id || ""} aggiornata; risposte impostate: ${row?.updated_count ?? 0}.`);
-    // Non chiudo la run: la chiusura (finished_at) resta a carico del flusso normale.
+    alert(`Prefill completato! Run ${row?.run_id || ""} — risposte impostate: ${row?.inserted_count ?? 0}.`);
+  }
+
+  // (facoltativo) Pulisci i prefill salvati
+  async function clearPrefill() {
+    const u = cheatUser.trim().replace(/^@/, "");
+    if (!u) return alert("Inserisci uno username (senza @).");
+    if (!confirm(`Rimuovere le risposte precompilate per @${u}?`)) return;
+    setCheatLoading(true);
+    const { data, error } = await supabase.rpc("admin_clear_prefill", {
+      p_admin_secret: adminSecret,
+      p_username: u,
+    });
+    setCheatLoading(false);
+    if (error) {
+      console.error(error);
+      return alert(error.message || "Errore nella pulizia prefill.");
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    alert(`Prefill rimossi: ${row?.cleared ?? 0}.`);
   }
 
   // ---- API ----
@@ -419,6 +438,9 @@ export default function Admin() {
                 </button>
                 <button className="secondary" onClick={markAllCorrectSoft} disabled={cheatLoading || !cheatUser.trim()}>
                   Imposta tutte corrette (NO chiusura)
+                </button>
+                <button className="secondary" onClick={clearPrefill} disabled={cheatLoading || !cheatUser.trim()}>
+                  Pulisci prefill
                 </button>
               </div>
 
