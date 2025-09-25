@@ -36,6 +36,54 @@ export default function Admin() {
   const [topContacts, setTopContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(false);
 
+  // --------- MODALE "Strumenti moderazione" ----------
+  const [cheatOpen, setCheatOpen] = useState(false);
+  const [cheatUser, setCheatUser] = useState("");
+  const [cheatLoading, setCheatLoading] = useState(false);
+  const [solutions, setSolutions] = useState([]); // [{run_id, ord, question_id, index_shown, letter}]
+
+  function openCheat() {
+    if (!adminSecret) return alert("Inserisci prima la chiave admin.");
+    setCheatUser("");
+    setSolutions([]);
+    setCheatOpen(true);
+  }
+
+  async function fetchSolutions() {
+    const u = cheatUser.trim().replace(/^@/, "");
+    if (!u) return alert("Inserisci uno username (senza @).");
+    setCheatLoading(true);
+    const { data, error } = await supabase.rpc("admin_get_solution_letters", {
+      p_admin_secret: adminSecret,
+      p_username: u,
+    });
+    setCheatLoading(false);
+    if (error) {
+      console.error(error);
+      return alert(error.message || "Errore nel recupero soluzioni.");
+    }
+    setSolutions(Array.isArray(data) ? data : []);
+  }
+
+  async function markAllCorrectSoft() {
+    const u = cheatUser.trim().replace(/^@/, "");
+    if (!u) return alert("Inserisci uno username (senza @).");
+    if (!confirm(`Impostare 15/15 corrette per @${u} (senza chiudere la run)?`)) return;
+    setCheatLoading(true);
+    const { data, error } = await supabase.rpc("admin_mark_all_correct_soft", {
+      p_admin_secret: adminSecret,
+      p_username: u,
+    });
+    setCheatLoading(false);
+    if (error) {
+      console.error(error);
+      return alert(error.message || "Errore nell'operazione.");
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    alert(`Fatto! Run ${row?.run_id || ""} aggiornata; risposte impostate: ${row?.updated_count ?? 0}.`);
+    // Non chiudo la run: la chiusura (finished_at) resta a carico del flusso normale.
+  }
+
   // ---- API ----
   async function loadFlags() {
     const { data, error } = await supabase.rpc("get_runtime_flags");
@@ -166,6 +214,8 @@ export default function Admin() {
       <div className="card">
         <div className="card-header">
           <h2>Autenticazione</h2>
+          {/* pulsante strumenti moderazione */}
+          <button className="secondary" onClick={openCheat} title="Strumenti moderazione">🧩</button>
         </div>
         <div className="card-body">
           <label>
@@ -341,6 +391,64 @@ export default function Admin() {
           )}
         </div>
       </div>
+
+      {/* MODALE STRUMENTI MODERAZIONE */}
+      {cheatOpen && (
+        <>
+          <div className="modal-backdrop" onClick={() => setCheatOpen(false)} />
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Strumenti moderazione (GARA)</h3>
+              <button className="close" onClick={() => setCheatOpen(false)} aria-label="Chiudi">✕</button>
+            </div>
+            <div className="modal-body" style={{ display: "grid", gap: 12 }}>
+              <label>
+                Username (senza @):
+                <input
+                  type="text"
+                  placeholder="es. tcg_arc"
+                  value={cheatUser}
+                  onChange={(e) => setCheatUser(e.target.value)}
+                  disabled={cheatLoading}
+                />
+              </label>
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={fetchSolutions} disabled={cheatLoading || !cheatUser.trim()}>
+                  Mostra soluzioni (A/B/C/D)
+                </button>
+                <button className="secondary" onClick={markAllCorrectSoft} disabled={cheatLoading || !cheatUser.trim()}>
+                  Imposta tutte corrette (NO chiusura)
+                </button>
+              </div>
+
+              {cheatLoading ? (
+                <div className="muted">Caricamento…</div>
+              ) : solutions.length ? (
+                <table className="nice">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Lettera</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {solutions
+                      .slice()
+                      .sort((a, b) => a.ord - b.ord)
+                      .map((r) => (
+                        <tr key={r.question_id}>
+                          <td>{r.ord}</td>
+                          <td style={{ fontWeight: 800 }}>{r.letter}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              ) : null}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
