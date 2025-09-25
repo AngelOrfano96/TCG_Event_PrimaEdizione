@@ -349,6 +349,8 @@ if (!isResuming) {
       setRank(null);
       setMode("main");
 
+          await syncQuestionsFromServer(row.run_id, "main"); // dentro handleStart
+
       localStorage.setItem("pq_username", u);
       localStorage.setItem("pq_run_id", row.run_id);
       localStorage.setItem("pq_secret", row.secret_code);
@@ -378,6 +380,26 @@ fetchMyRank(row.run_id);
       return next;
     });
   }
+async function syncQuestionsFromServer(currRunId = runId, currMode = mode) {
+  if (!currRunId) return;
+  const fn = currMode === "sim" ? "get_sim_run_details" : "get_run_details";
+  const { data, error } = await supabase.rpc(fn, { p_run_id: currRunId });
+  if (error || !Array.isArray(data)) return;
+
+  const byId = new Map(data.map(r => [r.question_id, r]));
+
+  setQuestions(qs => qs.map(q => {
+    const d = byId.get(q.id) || byId.get(q.question_id);
+    if (!d) return q;
+    return {
+      ...q,
+      // allinea la selezione con il server
+      selected: d.selected_index_shown ?? null,
+      // chiusa SOLO se è stata inviata e risulta corretta lato server
+      locked: d.selected_index_shown != null && d.is_correct === true,
+    };
+  }));
+}
 
 async function handleSubmit() {
   if (!runId) return;
@@ -403,18 +425,18 @@ async function handleSubmit() {
         return alert("Errore nell'invio.");
       }
       const row = Array.isArray(data) ? data[0] : data;
-      const submittedIds = new Set(payload.map(a => a.question_id));
-      const wrong = row?.wrong_ids || [];
-      setQuestions(qs =>
-  qs.map(q => {
-    // Se non l'hai inviata in questo giro, non toccarla
-    if (!submittedIds.has(q.id)) return q;
 
-    // Se l'hai inviata e NON è nei wrong_ids => è corretta => lock
+// 🔒 aggiorna SOLO le domande inviate in questo giro
+const submittedIds = new Set(payload.map(a => a.question_id));
+const wrong = row?.wrong_ids || [];
+setQuestions(qs =>
+  qs.map(q => {
+    if (!submittedIds.has(q.id)) return q;      // non toccare le NON inviate ora
     const isWrong = wrong.includes(q.id);
-    return { ...q, locked: !isWrong };
+    return { ...q, locked: !isWrong };          // inviata: chiudi se corretta
   })
 );
+await syncQuestionsFromServer(runId, mode);
       setIsWinner(Boolean(row?.is_winner));
       setRank(row?.rank ?? null);
 
@@ -495,6 +517,10 @@ async function handleStartSim() {
     setFinished(Boolean(row.finished_at));
     setIsWinner(false);
     setRank(null);
+
+
+await syncQuestionsFromServer(row.run_id, "sim");  // dentro handleStartSim
+
 
     localStorage.setItem("pq_username", u);
     localStorage.setItem("pq_run_id", row.run_id);
