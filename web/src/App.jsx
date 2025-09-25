@@ -218,6 +218,11 @@ const simStartLocked = useMemo(() => {
 
 
   // ===== Throttle per la leaderboard (1 refresh/sec) =====
+  // ricarica la classifica quando cambi tab o pagina
+useEffect(() => {
+  fetchLeaderboard(lbMode, page);
+}, [lbMode, page]);
+
 useEffect(() => {
   scheduleLBRefreshRef.current = (which) => {
     const key = which === "sim" ? "sim" : "main";
