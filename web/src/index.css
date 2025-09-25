@@ -357,6 +357,25 @@ button:disabled{ opacity:.6; cursor:not-allowed; }
 
 
 
+/* Pill LIVE online */
+.live-pill{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 10px; border-radius:999px;
+  background: rgba(255,140,0,.12);           /* arancio tenue */
+  border:1px solid var(--border);
+  font-weight:700;
+  white-space: nowrap;
+}
 
+/* Contenitore del bottone in fondo */
+.bottom-actions{
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;   /* o center, se preferisci */
+}
+
+@media (max-width: 480px){
+  .live-pill{ font-weight:600; }
+}
 
 

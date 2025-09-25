@@ -39,6 +39,16 @@ const [lbMode, setLbMode] = useState("main"); // quale classifica stai guardando
 // modali info
 const [showRules, setShowRules] = useState(false);
 const [showPrivacy, setShowPrivacy] = useState(false);
+// === Live online counter (Supabase Presence) ===
+const [onlineCount, setOnlineCount] = useState(0);
+const presenceChannelRef = useRef(null);
+const presenceReadyRef = useRef(false);
+// id stabile per tab/utente (salvato in localStorage)
+const presenceIdRef = useRef(
+  localStorage.getItem("pq_presence_id") ||
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+);
+
 
 // consenso GDPR (gating dei bottoni Start)
 const [consentAccepted, setConsentAccepted] = useState(false);
@@ -128,6 +138,11 @@ const simCountdown = useMemo(() => {
  const totalQuestions = questions.length || (mode === "sim" ? 30 : 15);
  const progressPct = Math.round((correctCount / totalQuestions) * 100);
 
+useEffect(() => {
+  if (!localStorage.getItem("pq_presence_id")) {
+    localStorage.setItem("pq_presence_id", presenceIdRef.current);
+  }
+}, []);
 
 
 
@@ -554,6 +569,62 @@ fetchMyRank(row.run_id);
     if (savedSecret) setSecretCode(savedSecret);
     if (savedEmail) setEmail(savedEmail);
   }, []);
+useEffect(() => {
+  // crea canale presence
+  const ch = supabase.channel("presence-app", {
+    config: {
+      presence: { key: presenceIdRef.current }
+    }
+  });
+
+  presenceChannelRef.current = ch;
+
+  // quando si sincronizza la presence, ricalcola il totale
+  ch.on("presence", { event: "sync" }, () => {
+    const state = ch.presenceState(); // { key: [metadati,...], ... }
+    const count = Object.values(state).reduce(
+      (acc, arr) => acc + (Array.isArray(arr) ? arr.length : 0),
+      0
+    );
+    setOnlineCount(count);
+  });
+
+  // sottoscrizione e tracciamento iniziale
+  ch.subscribe((status) => {
+    if (status === "SUBSCRIBED") {
+      presenceReadyRef.current = true;
+      ch.track({
+        username: username || null,
+        mode,
+        online_at: new Date().toISOString(),
+      });
+    }
+  });
+
+  // cleanup su unmount/refresh pagina
+  const onBeforeUnload = () => {
+    try { ch.untrack(); } catch {}
+  };
+  window.addEventListener("beforeunload", onBeforeUnload);
+
+  return () => {
+    window.removeEventListener("beforeunload", onBeforeUnload);
+    try { ch.untrack(); } catch {}
+    supabase.removeChannel(ch);
+  };
+}, []); // deps vuote
+useEffect(() => {
+  const ch = presenceChannelRef.current;
+  if (ch && presenceReadyRef.current) {
+    try {
+      ch.track({
+        username: username || null,
+        mode,
+        online_at: new Date().toISOString(),
+      });
+    } catch {}
+  }
+}, [username, mode]);
 
   return (
     <div className="container">
@@ -594,6 +665,7 @@ fetchMyRank(row.run_id);
   </div>
 
   <div className="top-right">
+    <div className="live-pill" title="Utenti online in tempo reale">🟢 {onlineCount} online</div>
   <button className="secondary" onClick={() => setShowRules(true)}>Regolamento</button>
   <button className="secondary" onClick={() => setShowPrivacy(true)}>Privacy</button>
 </div>
@@ -889,6 +961,14 @@ fetchMyRank(row.run_id);
                 </div>
               ))}
             </section>
+            {runId && !finished && (
+  <div className="bottom-actions">
+    <button onClick={handleSubmit} disabled={loading}>
+      Invia risposte
+    </button>
+  </div>
+)}
+
           </div>
         </main>
       </div>
