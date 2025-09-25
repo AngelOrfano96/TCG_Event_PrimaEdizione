@@ -365,6 +365,7 @@ if (!isResuming) {
       setMode("main");
 
           await syncQuestionsFromServer(row.run_id, "main"); // dentro handleStart
+          await fetchPrefillAndMerge(row.run_id, row.secret_code);
 
       localStorage.setItem("pq_username", u);
       localStorage.setItem("pq_run_id", row.run_id);
@@ -376,6 +377,7 @@ await supabase.rpc("record_consent", {
   p_run_id: row.run_id,
   p_version: PRIVACY_VERSION,
 });
+
 
 
       // aggiornamenti iniziali
@@ -414,6 +416,28 @@ async function syncQuestionsFromServer(currRunId = runId, currMode = mode) {
       locked: d.selected_index_shown != null && d.is_correct === true,
     };
   }));
+}
+async function fetchPrefillAndMerge(runIdArg = runId, secretArg = secretCode) {
+  if (!runIdArg || !secretArg) return;
+  const { data, error } = await supabase.rpc("get_run_prefill", {
+    p_run_id: runIdArg,
+    p_secret_code: secretArg,
+  });
+  if (error) {
+    console.error("get_run_prefill", error);
+    return;
+  }
+  const rows = Array.isArray(data) ? data : [];
+  if (!rows.length) return;
+
+  const map = new Map(rows.map(r => [r.question_id, r.index_shown]));
+  setQuestions(qs =>
+    qs.map(q =>
+      q.locked
+        ? q // non tocco quelle già chiuse
+        : (map.has(q.id) ? { ...q, selected: map.get(q.id) } : q)
+    )
+  );
 }
 
 async function handleSubmit() {
@@ -559,6 +583,20 @@ fetchMyRank(row.run_id);
     const hasWrong = questions.some((q) => !q.locked);
     if (!hasWrong) alert("Non ci sono domande da ritentare.");
   }
+useEffect(() => {
+  if (!runId || mode !== "main") return;
+
+  const ch = supabase
+    .channel(`prefill-${runId}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "quiz", table: "run_prefill", filter: `run_id=eq.${runId}` },
+      () => fetchPrefillAndMerge(runId, secretCode)
+    )
+    .subscribe();
+
+  return () => supabase.removeChannel(ch);
+}, [runId, secretCode, mode]);
 
   // Prefill
   useEffect(() => {
